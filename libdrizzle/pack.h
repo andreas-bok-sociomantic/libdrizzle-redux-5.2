@@ -1,8 +1,7 @@
-/* vim:expandtab:shiftwidth=2:tabstop=2:smarttab:
- *
+/*
  * Drizzle Client & Protocol Library
  *
- * Copyright (C) 2012 Drizzle Developer Group
+ * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,14 +36,66 @@
 
 #pragma once
 
+/**
+ * @file
+ * @brief Packing Declarations
+ */
+
 #ifdef __cplusplus
-struct drizzle_st;
-struct drizzle_tcp_st;
-struct drizzle_uds_st;
-struct drizzle_st;
-struct drizzle_result_st;
-struct drizzle_binlog_st;
-struct drizzle_column_st;
-struct drizzle_stmt_st;
-struct drizzle_bind_st;
+extern "C" {
+#endif
+
+/**
+ * @addtogroup drizzle_pack Packing Declarations
+ *
+ * These functions are used internally to pack various parts of the protocol.
+ * Not all functions are defined in pack.c, they are in the most appropriate
+ * source file (for example, handshake.c for drizzle_pack_client_handshake).
+ * @{
+ */
+
+/**
+ * Pack length-encoded number.
+ */
+
+unsigned char *drizzle_pack_length(uint64_t number, unsigned char *ptr);
+
+/**
+ * Unpack length-encoded number.
+ */
+
+uint64_t drizzle_unpack_length(drizzle_st *con, drizzle_return_t *ret_ptr);
+
+/**
+ * Pack length-encoded string.
+ */
+
+unsigned char *drizzle_pack_string(char *string, unsigned char *ptr);
+
+unsigned char *drizzle_pack_binary(unsigned char *data, size_t len, unsigned char *ptr);
+
+unsigned char *drizzle_pack_time(drizzle_datetime_st *time, unsigned char *ptr);
+
+unsigned char *drizzle_pack_datetime(drizzle_datetime_st *datetime, unsigned char *ptr);
+
+void drizzle_unpack_time(drizzle_field_t field, size_t length, unsigned char *data);
+
+void drizzle_unpack_datetime(drizzle_field_t field, size_t length, unsigned char *data);
+
+/**
+ * Unpack length-encoded string.
+ */
+drizzle_return_t drizzle_unpack_string(drizzle_st *con, char *buffer,
+                                       uint64_t max_size);
+
+/**
+ * Pack user, scramble, and db.
+ */
+unsigned char *drizzle_pack_auth(drizzle_st *con, unsigned char *ptr,
+                           drizzle_return_t *ret_ptr);
+
+/** @} */
+
+#ifdef __cplusplus
+}
 #endif

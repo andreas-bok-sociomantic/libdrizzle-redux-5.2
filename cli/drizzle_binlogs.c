@@ -34,15 +34,25 @@
  *
  */
 
-#define _GNU_SOURCE 1
+#include "config.h"
+
 #include <libdrizzle-5.1/libdrizzle.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <pwd.h>
+
+#ifdef HAVE_PWD_H
+# include <pwd.h>
+#endif
+
 #include <unistd.h>
 #include <errno.h>
-#include <argp.h>
 #include <time.h>
+
+#ifdef HAVE_ARGP_H
+# include <argp.h>
+#else
+# error "drizzle_binlogs requires <argp.h>"
+#endif
 
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
@@ -138,7 +148,7 @@ bool get_system_user(char *dest, uint8_t len);
 drizzle_st *_connect(void);
 FILE *create_binlog_file(char *binlog_file);
 void get_binlogs(drizzle_st *con);
-void write_binlog(FILE* file, const uint8_t* data, uint32_t len);
+void write_binlog(FILE* file, const unsigned char* data, uint32_t len);
 
 bool get_system_user(char *dest, uint8_t len)
 {
@@ -236,7 +246,7 @@ void get_binlogs(drizzle_st *con)
 
   while(1)
   {
-    write_binlog(outfile, (uint8_t *)DRIZZLE_BINLOG_MAGIC, 4);
+    write_binlog(outfile, (unsigned char *)DRIZZLE_BINLOG_MAGIC, 4);
     while(1)
     {
       ret= drizzle_binlog_get_next_event(result);
@@ -274,7 +284,7 @@ void get_binlogs(drizzle_st *con)
   drizzle_result_free(result);
 }
 
-void write_binlog(FILE* file, const uint8_t* data, uint32_t len)
+void write_binlog(FILE* file, const unsigned char* data, uint32_t len)
 {
   if (len)
   {

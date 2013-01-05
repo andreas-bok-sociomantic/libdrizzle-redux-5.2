@@ -6,7 +6,7 @@
 # Use and distribution licensed under the BSD license.  See
 # the COPYING file in this directory for full text.
 
-AC_INIT([libdrizzle],[5.1.0],[http://bugs.launchpad.net/drizzle],[libdrizzle],[http://drizzle.org/])
+AC_INIT([libdrizzle],[5.1.1],[http://bugs.launchpad.net/drizzle],[libdrizzle],[http://drizzle.org/])
 
 AC_CONFIG_AUX_DIR([build-aux])
 
@@ -27,7 +27,7 @@ AC_CONFIG_HEADERS([config.h:config.in])dnl Keep filename to 8.3 for MS-DOS.
 AC_CONFIG_SRCDIR([libdrizzle/drizzle.cc])
 
 #shared library versioning
-LIBDRIZZLE_LIBRARY_VERSION=5:1:0
+LIBDRIZZLE_LIBRARY_VERSION=6:0:0
 #                         | | |
 #                  +------+ | +---+
 #                  |        |     |
@@ -57,23 +57,37 @@ AX_PROG_SPHINX_BUILD
 
 # Checks for libraries.
 AX_CXX_GCC_ABI_DEMANGLE
-AX_CHECK_OPENSSL
+
+AS_IF([test "x${target_os}" != "xmingw32"], [AX_CHECK_OPENSSL])
+
 AC_PATH_ZLIB
 
 # Checks for header files.
 AC_DEFUN([CHECK_FOR_CXXABI],
          [AC_LANG_PUSH([C++])
          AC_CHECK_HEADERS([cxxabi.h])
-         AC_LANG_POP
-         ])
+         AC_LANG_POP])
+
 CHECK_FOR_CXXABI
-AC_CHECK_HEADERS_ONCE([errno.h])
-AC_CHECK_HEADERS_ONCE([sys/socket.h])
-AC_CHECK_HEADERS_ONCE([poll.h])
+AC_CHECK_HEADERS([argp.h])
+AC_CHECK_HEADERS([errno.h])
+AC_CHECK_HEADERS([fcntl.h])
+AC_CHECK_HEADERS([io.h])
+AC_CHECK_HEADERS([openssl/ssl.h])
+AC_CHECK_HEADERS([poll.h])
+AC_CHECK_HEADERS([pwd.h])
+AC_CHECK_HEADERS([sys/socket.h])
+AC_CHECK_HEADERS([windows.h])
+AC_CHECK_HEADERS([winsock2.h])
+AC_CHECK_HEADERS([ws2tcpip.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
+AC_CHECK_TYPES([in_port_t])
+AC_TYPE_SSIZE_T
+AC_TYPE_SIZE_T
 
 # Checks for library functions.
+AC_CHECK_FUNCS([fcntl])
 AC_CHECK_FUNCS([poll])
 AC_CHECK_FUNCS([ppoll])
 

@@ -2,7 +2,7 @@
  *
  *  Drizzle Client & Protocol Library
  *
- * Copyright (C) 2012 Andrew Hutchings (andrew@linuxjedi.co.uk)
+ * Copyright (C) 2012 Drizzle Developer Group
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,18 +41,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <inttypes.h>
+#include <string.h>
 
 int main(int argc, char *argv[])
 {
   (void) argc;
   (void) argv;
+  drizzle_stmt_st *stmt;
 
   drizzle_st *con= drizzle_create_tcp(getenv("MYSQL_SERVER"),
                                       getenv("MYSQL_PORT") ? atoi("MYSQL_PORT") : DRIZZLE_DEFAULT_TCP_PORT,
                                       getenv("MYSQL_USER"),
                                       getenv("MYSQL_PASSWORD"),
                                       getenv("MYSQL_SCHEMA"), 0);
+
   ASSERT_NOT_NULL_(con, "Drizzle connection object creation error");
 
   drizzle_return_t ret= drizzle_connect(con);
@@ -62,7 +66,7 @@ int main(int argc, char *argv[])
     drizzle_quit(con);
     SKIP_IF_(ret == DRIZZLE_RETURN_COULD_NOT_CONNECT, "%s(%s)", error, drizzle_strerror(ret));
   }
-  ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "%s", drizzle_error(con));
+  ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "drizzle_connect(): %s(%s)", drizzle_error(con), drizzle_strerror(ret));
 
   drizzle_query_str(con, "DROP SCHEMA IF EXISTS libdrizzle", &ret);
   ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "CREATE SCHEMA libdrizzle (%s)", drizzle_error(con));
@@ -73,24 +77,74 @@ int main(int argc, char *argv[])
   ret= drizzle_select_db(con, "libdrizzle");
   ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "USE libdrizzle");
 
-  drizzle_query_str(con, "create table libdrizzle.t1 (a int primary key auto_increment, b int)", &ret);
-  ASSERT_EQ_(ret, DRIZZLE_RETURN_OK, "create table libdrizzle.t1 (a int primary key auto_increment, b int)");
+  drizzle_query_str(con, "create table libdrizzle.t1 (a varchar(50))", &ret);
+  ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "create table libdrizzle.t1 (a int): %s", drizzle_error(con));
 
-  drizzle_result_st *result= drizzle_query_str(con, "insert into libdrizzle.t1 (b) values (1),(2),(3)", &ret);
-  ASSERT_EQ_(ret, DRIZZLE_RETURN_OK, "insert into libdrizzle.t1 (b) values (1),(2),(3)");
-  ASSERT_TRUE(result);
+  drizzle_query_str(con, "insert into libdrizzle.t1 values ('hello'),('drizzle'),('people')", &ret);
+  ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "%s", drizzle_error(con));
 
-  ASSERT_EQ_(drizzle_result_insert_id(result), 1, "Got bad insert_id (expected 1, got %"PRIu64")", drizzle_result_insert_id(result));
-  drizzle_result_free(result);
+  const char *query= "select * from libdrizzle.t1 where a = ?";
+  stmt= drizzle_stmt_prepare(con, query, strlen(query), &ret);
+  ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "%s", drizzle_error(con));
 
-  result= drizzle_query_str(con, "INSERT INTO libdrizzle.t1 (b) VALUES (4),(5),(6)", &ret);
-  ASSERT_EQ_(ret, DRIZZLE_RETURN_OK, "INSERT INTO libdrizzle.t1 (b) VALUES (4),(5),(6)");
+  /* Query should have 1 param */
+  ASSERT_EQ_(1, drizzle_stmt_param_count(stmt), "Retrieved bad param count");
 
-  ASSERT_EQ_(drizzle_result_insert_id(result), 4, "Got bad insert_id (expected 4, got %"PRIu64")", drizzle_result_insert_id(result));
-  drizzle_result_free(result);
+  char val[]= "hello";
+  ret = drizzle_stmt_set_string(stmt, 0, val, strlen(val));
+  if (ret != DRIZZLE_RETURN_OK)
+  {
+    printf("Bind failure\n");
+    return EXIT_FAILURE;
+  }
+
+  ret = drizzle_stmt_execute(stmt);
+  if (ret != DRIZZLE_RETURN_OK)
+  {
+    printf("Execute failure\n");
+    return EXIT_FAILURE;
+  }
+  ret = drizzle_stmt_buffer(stmt);
+  if (ret != DRIZZLE_RETURN_OK)
+  {
+    printf("Buffer failure\n");
+    return EXIT_FAILURE;
+  }
+  /* Result should have 1 row */
+  if (drizzle_stmt_row_count(stmt) != 1)
+  {
+    printf("Retrieved bad row count\n");
+    return EXIT_FAILURE;
+  }
+  uint32_t i= 0;
+  while (drizzle_stmt_fetch(stmt) != DRIZZLE_RETURN_ROW_END)
+  {
+    const char* char_val;
+    size_t len;
+    char_val= drizzle_stmt_get_string(stmt, 0, &len, &ret);
+    ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "drizzle_stmt_get_string");
+    i++;
+    if (strncmp(val, char_val, len) != 0)
+    {
+      printf("Retrieved unexpected string value\n");
+      return EXIT_FAILURE;
+    }
+  }
+  /* Should have cycled through 1 row */
+  if (i != 1)
+  {
+    printf("Retrieved bad number of rows\n");
+    return EXIT_FAILURE;
+  }
+  ret = drizzle_stmt_close(stmt);
+  if (ret != DRIZZLE_RETURN_OK)
+  {
+    printf("Statement close failure ret: %d, err: %d, msg: %s\n", ret, drizzle_errno(con), drizzle_error(con));
+    return EXIT_FAILURE;
+  }
 
   drizzle_query_str(con, "DROP TABLE libdrizzle.t1", &ret);
-  ASSERT_EQ_(ret, DRIZZLE_RETURN_OK, "dROP TABLE failure");
+  ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "DROP TABLE libdrizzle.t1");
 
   drizzle_query_str(con, "DROP SCHEMA IF EXISTS libdrizzle", &ret);
   ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "DROP SCHEMA libdrizzle (%s)", drizzle_error(con));

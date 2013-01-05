@@ -2,7 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
- * Copyright (C) 2012 Drizzle Developer Group
+ * Copyright (C) 2012 Andrew Hutchings (andrew@linuxjedi.co.uk)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,14 +37,5 @@
 
 #pragma once
 
-#ifdef __cplusplus
-struct drizzle_st;
-struct drizzle_tcp_st;
-struct drizzle_uds_st;
-struct drizzle_st;
-struct drizzle_result_st;
-struct drizzle_binlog_st;
-struct drizzle_column_st;
-struct drizzle_stmt_st;
-struct drizzle_bind_st;
-#endif
+drizzle_return_t drizzle_state_binlog_read(drizzle_st *con);
+

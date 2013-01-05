@@ -110,36 +110,15 @@ drizzle_stmt_st *drizzle_stmt_prepare(drizzle_st *con, const char *statement, si
   return stmt;
 }
 
-drizzle_return_t drizzle_stmt_bind_param(drizzle_stmt_st *stmt, uint16_t param_num, drizzle_column_type_t type, void *data, uint32_t length, drizzle_bind_options_t options)
-{
-  if ((stmt == NULL) || (param_num >= stmt->param_count) || (data == NULL))
-  {
-    return DRIZZLE_RETURN_INVALID_ARGUMENT;
-  }
-  if (stmt->state < DRIZZLE_STMT_PREPARED)
-  {
-    drizzle_set_error(stmt->con, __func__, "stmt object has bot been prepared");
-    return DRIZZLE_RETURN_STMT_ERROR;
-  }
-
-  stmt->query_params[param_num].type= type;
-  stmt->query_params[param_num].data= data;
-  stmt->query_params[param_num].length= length;
-  stmt->query_params[param_num].options= options;
-  stmt->query_params[param_num].is_bound= true;
-
-  return DRIZZLE_RETURN_OK;
-}
-
 drizzle_return_t drizzle_stmt_execute(drizzle_stmt_st *stmt)
 {
   uint16_t current_param;
   drizzle_bind_st *param_ptr;
   size_t param_lengths= 0;
   size_t buffer_size= 0;
-  uint8_t *buffer;
-  uint8_t *buffer_pos;
-  uint8_t *data_pos;
+  unsigned char *buffer;
+  unsigned char *buffer_pos;
+  unsigned char *data_pos;
   drizzle_return_t ret;
 
   /* Calculate param lengths */
@@ -162,7 +141,7 @@ drizzle_return_t drizzle_stmt_execute(drizzle_stmt_st *stmt)
              + (stmt->param_count * 2) /* Parameter type data */
              + param_lengths; /* Parameter data */
 
-  buffer = (uint8_t*)malloc(buffer_size);
+  buffer = (unsigned char*)malloc(buffer_size);
   if (buffer == NULL)
   {
     drizzle_set_error(stmt->con, __func__, "malloc");
@@ -213,7 +192,7 @@ drizzle_return_t drizzle_stmt_execute(drizzle_stmt_st *stmt)
     if (stmt->new_bind)
     {
       uint16_t type= (uint16_t)param_ptr->type;
-      if (param_ptr->options & DRIZZLE_BIND_OPTION_UNSIGNED)
+      if (param_ptr->options.is_unsigned)
       {
         /* Set the unsigned bit flag on the type data */
         type |= 0x8000;
@@ -222,7 +201,7 @@ drizzle_return_t drizzle_stmt_execute(drizzle_stmt_st *stmt)
       buffer_pos+= 2;
     }
 
-    if (param_ptr->options & DRIZZLE_BIND_OPTION_LONG_DATA)
+    if (param_ptr->options.is_long_data)
     {
       /* Long data is sent separately, not in this buffer */
       continue;
@@ -279,7 +258,7 @@ drizzle_return_t drizzle_stmt_execute(drizzle_stmt_st *stmt)
       case DRIZZLE_COLUMN_TYPE_STRING:
       case DRIZZLE_COLUMN_TYPE_DECIMAL:
       case DRIZZLE_COLUMN_TYPE_NEWDECIMAL:
-        data_pos= drizzle_pack_binary((uint8_t*)param_ptr->data, param_ptr->length, data_pos);
+        data_pos= drizzle_pack_binary((unsigned char*)param_ptr->data, param_ptr->length, data_pos);
         break;
       /* These types aren't handled yet, most are for older MySQL versions */
       case DRIZZLE_COLUMN_TYPE_INT24:
@@ -289,6 +268,10 @@ drizzle_return_t drizzle_stmt_execute(drizzle_stmt_st *stmt)
       case DRIZZLE_COLUMN_TYPE_SET:
       case DRIZZLE_COLUMN_TYPE_GEOMETRY:
       case DRIZZLE_COLUMN_TYPE_BIT:
+      /* TODO: We need to support these three */
+      case DRIZZLE_COLUMN_TYPE_TIMESTAMP2:
+      case DRIZZLE_COLUMN_TYPE_DATETIME2:
+      case DRIZZLE_COLUMN_TYPE_TIME2:
       default:
         drizzle_set_error(stmt->con, __func__, "unknown type when filling buffer");
         free(buffer);
@@ -333,10 +316,10 @@ drizzle_return_t drizzle_stmt_execute(drizzle_stmt_st *stmt)
   return ret;
 }
 
-drizzle_return_t drizzle_stmt_send_long_data(drizzle_stmt_st *stmt, uint16_t param_num, uint8_t *data, size_t len)
+drizzle_return_t drizzle_stmt_send_long_data(drizzle_stmt_st *stmt, uint16_t param_num, unsigned char *data, size_t len)
 {
   drizzle_return_t ret;
-  uint8_t *buffer;
+  unsigned char *buffer;
 
   if ((stmt == NULL) || (param_num >= stmt->param_count))
   {
@@ -353,7 +336,7 @@ drizzle_return_t drizzle_stmt_send_long_data(drizzle_stmt_st *stmt, uint16_t par
   /* TODO: rework drizzle_command_write so we can send a header and we don't
    * need this copy
    * */
-  buffer= (uint8_t*)malloc(len + 6);
+  buffer= (unsigned char*)malloc(len + 6);
 
   drizzle_set_byte4(buffer, stmt->id);
   drizzle_set_byte2(&buffer[4], param_num);
@@ -363,7 +346,7 @@ drizzle_return_t drizzle_stmt_send_long_data(drizzle_stmt_st *stmt, uint16_t par
   drizzle_command_write(stmt->con, NULL, DRIZZLE_COMMAND_STMT_SEND_LONG_DATA,
                         buffer, len+6, len+6, &ret);
   stmt->con->options= (drizzle_options_t)((uint8_t)stmt->con->options & (uint8_t)~DRIZZLE_CON_NO_RESULT_READ);
-  stmt->query_params[param_num].options= (drizzle_bind_options_t)((uint8_t)stmt->query_params[param_num].options | (uint8_t)DRIZZLE_BIND_OPTION_LONG_DATA);
+  stmt->query_params[param_num].options.is_long_data= true;
 
   free(buffer);
   return ret;
@@ -372,7 +355,7 @@ drizzle_return_t drizzle_stmt_send_long_data(drizzle_stmt_st *stmt, uint16_t par
 drizzle_return_t drizzle_stmt_reset(drizzle_stmt_st *stmt)
 {
   drizzle_return_t ret;
-  uint8_t buffer[4];
+  unsigned char buffer[4];
   uint16_t current_param;
 
   if (stmt == NULL)
@@ -382,7 +365,7 @@ drizzle_return_t drizzle_stmt_reset(drizzle_stmt_st *stmt)
 
   for (current_param= 0; current_param < stmt->param_count; current_param++)
   {
-    stmt->query_params[current_param].options= (drizzle_bind_options_t)((uint8_t)stmt->query_params[current_param].options & (uint8_t)~DRIZZLE_BIND_OPTION_LONG_DATA);
+    stmt->query_params[current_param].options.is_long_data= false;
   }
 
   drizzle_set_byte4(buffer, stmt->id);
@@ -444,7 +427,7 @@ drizzle_return_t drizzle_stmt_fetch(drizzle_stmt_st *stmt)
     /* if this row is null in the result bitmap */
     if (*stmt->execute_result->null_bitmap & ((column_counter^2) << 2))
     {
-      param->options = (drizzle_bind_options_t)((uint8_t)param->options | (uint8_t) DRIZZLE_BIND_OPTION_NULL);
+      param->options.is_null= true;
       param->length= 0;
     }
     else
@@ -455,7 +438,7 @@ drizzle_return_t drizzle_stmt_fetch(drizzle_stmt_st *stmt)
       param->length= stmt->execute_result->field_sizes[column_counter];
       if (column->flags & DRIZZLE_COLUMN_FLAGS_UNSIGNED)
       {
-        param->options = (drizzle_bind_options_t)((uint8_t)param->options | (uint8_t) DRIZZLE_BIND_OPTION_UNSIGNED);
+        param->options.is_unsigned= true;
       }
 
       param->data= realloc(param->data, param->length);
@@ -491,12 +474,12 @@ drizzle_return_t drizzle_stmt_fetch(drizzle_stmt_st *stmt)
           memcpy(param->data, row[column_counter], 8);
           break;
         case DRIZZLE_COLUMN_TYPE_TIME:
-          drizzle_unpack_time(row[column_counter], param->length, (uint8_t*)param->data);
+          drizzle_unpack_time(row[column_counter], param->length, (unsigned char*)param->data);
           break;
         case DRIZZLE_COLUMN_TYPE_DATE:
         case DRIZZLE_COLUMN_TYPE_DATETIME:
         case DRIZZLE_COLUMN_TYPE_TIMESTAMP:
-          drizzle_unpack_datetime(row[column_counter], param->length, (uint8_t*)param->data);
+          drizzle_unpack_datetime(row[column_counter], param->length, (unsigned char*)param->data);
           break;
         case DRIZZLE_COLUMN_TYPE_TINY_BLOB:
         case DRIZZLE_COLUMN_TYPE_MEDIUM_BLOB:
@@ -515,6 +498,10 @@ drizzle_return_t drizzle_stmt_fetch(drizzle_stmt_st *stmt)
         case DRIZZLE_COLUMN_TYPE_ENUM:
         case DRIZZLE_COLUMN_TYPE_SET:
         case DRIZZLE_COLUMN_TYPE_GEOMETRY:
+        /* TODO: We need to support these three */
+        case DRIZZLE_COLUMN_TYPE_TIMESTAMP2:
+        case DRIZZLE_COLUMN_TYPE_DATETIME2:
+        case DRIZZLE_COLUMN_TYPE_TIME2:
         default:
           drizzle_set_error(stmt->con, __func__, "Unknown data type found");
           ret= DRIZZLE_RETURN_UNEXPECTED_DATA;
@@ -557,7 +544,7 @@ drizzle_return_t drizzle_stmt_buffer(drizzle_stmt_st *stmt)
 
 drizzle_return_t drizzle_stmt_close(drizzle_stmt_st *stmt)
 {
-  uint8_t buffer[4];
+  unsigned char buffer[4];
   drizzle_return_t ret;
 
   if (stmt == NULL)
@@ -566,14 +553,22 @@ drizzle_return_t drizzle_stmt_close(drizzle_stmt_st *stmt)
   }
 
   free(stmt->null_bitmap);
-  free(stmt->query_params);
-  if (stmt->result_params)
+  for (uint16_t x= 0; x < stmt->param_count; x++)
   {
-    free(stmt->result_params->data);
-    free(stmt->result_params);
+    if (stmt->query_params[x].options.is_allocated)
+    {
+      free(stmt->query_params[x].data);
+    }
   }
+  free(stmt->query_params);
   if (stmt->execute_result)
   {
+    for (uint16_t x= 0; x < stmt->execute_result->column_count; x++)
+    {
+      free(stmt->result_params[x].data);
+      free(stmt->result_params[x].converted_data);
+    }
+    free(stmt->result_params);
     drizzle_result_free(stmt->execute_result);
   }
   if (stmt->prepare_result)
@@ -588,42 +583,6 @@ drizzle_return_t drizzle_stmt_close(drizzle_stmt_st *stmt)
   stmt->con->options= (drizzle_options_t)((uint8_t)stmt->con->options & (uint8_t)~DRIZZLE_CON_NO_RESULT_READ);
   free(stmt);
   return ret;
-}
-
-drizzle_column_type_t drizzle_stmt_item_type(drizzle_stmt_st *stmt, uint16_t column_number)
-{
-  if ((stmt == NULL) || (stmt->result_params == NULL))
-  {
-    return DRIZZLE_COLUMN_TYPE_NONE;
-  }
-  return stmt->result_params[column_number].type;
-}
-
-void *drizzle_stmt_item_data(drizzle_stmt_st *stmt, uint16_t column_number)
-{
-  if ((stmt == NULL) || (stmt->result_params == NULL))
-  {
-    return NULL;
-  }
-  return stmt->result_params[column_number].data;
-}
-
-uint32_t drizzle_stmt_item_length(drizzle_stmt_st *stmt, uint16_t column_number)
-{
-  if ((stmt == NULL) || (stmt->result_params == NULL))
-  { 
-    return 0;
-  }
-  return stmt->result_params[column_number].length;
-}
-
-drizzle_bind_options_t drizzle_stmt_item_options(drizzle_stmt_st *stmt, uint16_t column_number)
-{
-  if ((stmt == NULL) || (stmt->result_params == NULL))
-  { 
-    return DRIZZLE_BIND_OPTION_NONE;
-  }
-  return stmt->result_params[column_number].options;
 }
 
 uint16_t drizzle_stmt_column_count(drizzle_stmt_st *stmt)

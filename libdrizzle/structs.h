@@ -43,9 +43,11 @@
 #pragma once
 
 #include <sys/types.h>
-#ifdef USE_OPENSSL
-#include <openssl/ssl.h>
+
+#if defined(HAVE_OPENSSL_SSL_H)
+# include <openssl/ssl.h>
 #endif
+
 #ifdef NI_MAXHOST
 # define LIBDRIZZLE_NI_MAXHOST NI_MAXHOST
 #else
@@ -53,12 +55,75 @@
 #endif
 
 #ifdef __cplusplus
-#include <cstddef>
+# include <cstddef>
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "libdrizzle/datetime.h"
+
+#if defined _WIN32 || defined __CYGWIN__
+typedef SOCKET socket_t;
+#else
+typedef int socket_t;
+#endif
+
+/**
+ * @ingroup drizzle_command 
+ * Commands for drizzle_command functions.
+ */
+enum drizzle_command_t
+{
+  DRIZZLE_COMMAND_SLEEP,               /* Not used currently. */
+  DRIZZLE_COMMAND_QUIT,
+  DRIZZLE_COMMAND_INIT_DB,
+  DRIZZLE_COMMAND_QUERY,
+  DRIZZLE_COMMAND_FIELD_LIST,          /* Deprecated. */
+  DRIZZLE_COMMAND_CREATE_DB,           /* Deprecated. */
+  DRIZZLE_COMMAND_DROP_DB,             /* Deprecated. */
+  DRIZZLE_COMMAND_REFRESH,
+  DRIZZLE_COMMAND_SHUTDOWN,
+  DRIZZLE_COMMAND_STATISTICS,
+  DRIZZLE_COMMAND_PROCESS_INFO,        /* Deprecated. */
+  DRIZZLE_COMMAND_CONNECT,             /* Not used currently. */
+  DRIZZLE_COMMAND_PROCESS_KILL,        /* Deprecated. */
+  DRIZZLE_COMMAND_DEBUG,
+  DRIZZLE_COMMAND_PING,
+  DRIZZLE_COMMAND_TIME,                /* Not used currently. */
+  DRIZZLE_COMMAND_DELAYED_INSERT,      /* Not used currently. */
+  DRIZZLE_COMMAND_CHANGE_USER,
+  DRIZZLE_COMMAND_BINLOG_DUMP,         /* Not used currently. */
+  DRIZZLE_COMMAND_TABLE_DUMP,          /* Not used currently. */
+  DRIZZLE_COMMAND_CONNECT_OUT,         /* Not used currently. */
+  DRIZZLE_COMMAND_REGISTER_SLAVE,      /* Not used currently. */
+  DRIZZLE_COMMAND_STMT_PREPARE,
+  DRIZZLE_COMMAND_STMT_EXECUTE,
+  DRIZZLE_COMMAND_STMT_SEND_LONG_DATA,
+  DRIZZLE_COMMAND_STMT_CLOSE,
+  DRIZZLE_COMMAND_STMT_RESET,
+  DRIZZLE_COMMAND_SET_OPTION,          /* Not used currently. */
+  DRIZZLE_COMMAND_STMT_FETCH,
+  DRIZZLE_COMMAND_DAEMON,              /* Not used currently. */
+  DRIZZLE_COMMAND_BINLOG_DUMP_GTID,
+  DRIZZLE_COMMAND_END                  /* Not used currently. */
+};
+
+#ifndef __cplusplus
+typedef enum drizzle_command_t drizzle_command_t;
+#endif
+
+
+/**
+ * @ingroup drizzle_con
+ * Socket types for drizzle_st.
+ */
+enum drizzle_socket_t
+{
+  DRIZZLE_CON_SOCKET_TCP,
+  DRIZZLE_CON_SOCKET_UDS
+};
 
 /**
  * @ingroup drizzle_con
@@ -84,6 +149,9 @@ struct drizzle_uds_st
  */
 struct drizzle_st
 {
+  struct {
+    bool is_shutdown;
+  } flags;
   uint8_t packet_number;
   uint8_t protocol_version;
   uint8_t state_current;
@@ -99,30 +167,30 @@ struct drizzle_st
   uint32_t result_count;
   uint32_t thread_id;
   int backlog;
-  int fd;
+  socket_t fd;
   size_t buffer_size;
   size_t command_offset;
   size_t command_size;
   size_t command_total;
   size_t packet_size;
   struct addrinfo *addrinfo_next;
-  uint8_t *buffer_ptr;
-  uint8_t *command_buffer;
-  uint8_t *command_data;
+  unsigned char *buffer_ptr;
+  unsigned char *command_buffer;
+  unsigned char *command_data;
   void *context;
   drizzle_context_free_fn *context_free_fn;
   drizzle_result_st *result;
   drizzle_result_st *result_list;
-  uint8_t *scramble;
+  unsigned char *scramble;
   union
   {
     drizzle_tcp_st tcp;
     drizzle_uds_st uds;
   } socket;
-  uint8_t buffer[DRIZZLE_MAX_BUFFER_SIZE];
+  unsigned char buffer[DRIZZLE_MAX_BUFFER_SIZE];
   char db[DRIZZLE_MAX_DB_SIZE];
   char password[DRIZZLE_MAX_PASSWORD_SIZE];
-  uint8_t scramble_buffer[DRIZZLE_MAX_SCRAMBLE_SIZE];
+  unsigned char scramble_buffer[DRIZZLE_MAX_SCRAMBLE_SIZE];
   char server_version[DRIZZLE_MAX_SERVER_VERSION_SIZE];
   char server_extra[DRIZZLE_MAX_SERVER_EXTRA_SIZE];
   drizzle_state_fn *state_stack[DRIZZLE_STATE_STACK_SIZE];
@@ -141,7 +209,7 @@ struct drizzle_st
   int timeout;
   drizzle_log_fn *log_fn;
   void *log_context;
-  struct pollfd pfds[1];
+  pollfd_t pfds[1];
   char sqlstate[DRIZZLE_MAX_SQLSTATE_SIZE + 1];
   char last_error[DRIZZLE_MAX_ERROR_SIZE];
   drizzle_stmt_st *stmt;
@@ -245,8 +313,8 @@ struct drizzle_binlog_st
   uint16_t flags;
   uint16_t extra_flags;
   uint32_t checksum;
-  uint8_t *data;
-  uint8_t *raw_data;
+  unsigned char *data;
+  unsigned char *raw_data;
   uint32_t raw_length;
 };
 
@@ -271,7 +339,7 @@ struct drizzle_column_st
   drizzle_column_type_t type;
   int flags;
   uint8_t decimals;
-  uint8_t default_value[DRIZZLE_MAX_DEFAULT_VALUE_SIZE];
+  unsigned char default_value[DRIZZLE_MAX_DEFAULT_VALUE_SIZE];
   size_t default_value_size;
 };
 
@@ -297,7 +365,14 @@ struct drizzle_bind_st
   void *data;
   uint32_t length;
   bool is_bound;
-  drizzle_bind_options_t options;
+  char *converted_data;
+  struct
+  {
+    bool is_null;
+    bool is_unsigned;
+    bool is_long_data;
+    bool is_allocated;
+  } options;
 };
 
 #ifdef __cplusplus

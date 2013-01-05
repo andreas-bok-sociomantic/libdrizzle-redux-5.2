@@ -60,6 +60,11 @@ extern "C" {
 /* Defines. */
 #define DRIZZLE_DEFAULT_TCP_HOST         "localhost"
 #define DRIZZLE_DEFAULT_TCP_PORT         3306
+#define DRIZZLE_MYSQL_TCP_PORT           3306
+#define DRIZZLE_MYSQL_TCP_SERVICE        "mysql"
+#define DRIZZLE_DRIZZLE_TCP_PORT         4427
+#define DRIZZLE_DEFAULT_TCP_SERVICE      "mysql"
+#define DRIZZLE_DRIZZLE_TCP_SERVICE      "drizzle"
 #define DRIZZLE_DEFAULT_UDS              "/tmp/mysql.sock"
 #define DRIZZLE_DEFAULT_BACKLOG          64
 #define DRIZZLE_MAX_ERROR_SIZE           2048
@@ -114,16 +119,6 @@ enum drizzle_options_t
 #ifndef __cplusplus
 typedef enum drizzle_options_t drizzle_options_t;
 #endif
-
-/**
- * @ingroup drizzle_con
- * Socket types for drizzle_st.
- */
-enum drizzle_socket_t
-{
-  DRIZZLE_CON_SOCKET_TCP= 0,
-  DRIZZLE_CON_SOCKET_UDS= (1 << 0)
-};
 
 #ifndef __cplusplus
 typedef enum drizzle_socket_t drizzle_socket_t;
@@ -196,49 +191,6 @@ typedef enum drizzle_capabilities_t drizzle_capabilities_t;
 #endif
 
 /**
- * @ingroup drizzle_command 
- * Commands for drizzle_command functions.
- */
-enum drizzle_command_t
-{
-  DRIZZLE_COMMAND_SLEEP,               /* Not used currently. */
-  DRIZZLE_COMMAND_QUIT,
-  DRIZZLE_COMMAND_INIT_DB,
-  DRIZZLE_COMMAND_QUERY,
-  DRIZZLE_COMMAND_FIELD_LIST,          /* Deprecated. */
-  DRIZZLE_COMMAND_CREATE_DB,           /* Deprecated. */
-  DRIZZLE_COMMAND_DROP_DB,             /* Deprecated. */
-  DRIZZLE_COMMAND_REFRESH,
-  DRIZZLE_COMMAND_SHUTDOWN,
-  DRIZZLE_COMMAND_STATISTICS,
-  DRIZZLE_COMMAND_PROCESS_INFO,        /* Deprecated. */
-  DRIZZLE_COMMAND_CONNECT,             /* Not used currently. */
-  DRIZZLE_COMMAND_PROCESS_KILL,        /* Deprecated. */
-  DRIZZLE_COMMAND_DEBUG,
-  DRIZZLE_COMMAND_PING,
-  DRIZZLE_COMMAND_TIME,                /* Not used currently. */
-  DRIZZLE_COMMAND_DELAYED_INSERT,      /* Not used currently. */
-  DRIZZLE_COMMAND_CHANGE_USER,
-  DRIZZLE_COMMAND_BINLOG_DUMP,         /* Not used currently. */
-  DRIZZLE_COMMAND_TABLE_DUMP,          /* Not used currently. */
-  DRIZZLE_COMMAND_CONNECT_OUT,         /* Not used currently. */
-  DRIZZLE_COMMAND_REGISTER_SLAVE,      /* Not used currently. */
-  DRIZZLE_COMMAND_STMT_PREPARE,
-  DRIZZLE_COMMAND_STMT_EXECUTE,
-  DRIZZLE_COMMAND_STMT_SEND_LONG_DATA,
-  DRIZZLE_COMMAND_STMT_CLOSE,
-  DRIZZLE_COMMAND_STMT_RESET,
-  DRIZZLE_COMMAND_SET_OPTION,          /* Not used currently. */
-  DRIZZLE_COMMAND_STMT_FETCH,
-  DRIZZLE_COMMAND_DAEMON,              /* Not used currently. */
-  DRIZZLE_COMMAND_END                  /* Not used currently. */
-};
-
-#ifndef __cplusplus
-typedef enum drizzle_command_t drizzle_command_t;
-#endif
-
-/**
  * @ingroup drizzle_result
  * Options for drizzle_result_st.
  */
@@ -293,6 +245,9 @@ enum drizzle_column_type_t
   DRIZZLE_COLUMN_TYPE_NEWDATE,
   DRIZZLE_COLUMN_TYPE_VARCHAR,
   DRIZZLE_COLUMN_TYPE_BIT,
+  DRIZZLE_COLUMN_TYPE_TIMESTAMP2,
+  DRIZZLE_COLUMN_TYPE_DATETIME2,
+  DRIZZLE_COLUMN_TYPE_TIME2,
   DRIZZLE_COLUMN_TYPE_NEWDECIMAL=  246,
   DRIZZLE_COLUMN_TYPE_ENUM=        247,
   DRIZZLE_COLUMN_TYPE_SET=         248,
@@ -385,11 +340,19 @@ typedef enum
   DRIZZLE_EVENT_TYPE_OBSOLETE_WRITE_ROWS= 20,
   DRIZZLE_EVENT_TYPE_OBSOLETE_UPDATE_ROWS= 21,
   DRIZZLE_EVENT_TYPE_OBSOLETE_DELETE_ROWS= 22,
-  DRIZZLE_EVENT_TYPE_WRITE_ROWS= 23,
-  DRIZZLE_EVENT_TYPE_UPDATE_ROWS= 24,
-  DRIZZLE_EVENT_TYPE_DELETE_ROWS= 25,
+  DRIZZLE_EVENT_TYPE_V1_WRITE_ROWS= 23,
+  DRIZZLE_EVENT_TYPE_V1_UPDATE_ROWS= 24,
+  DRIZZLE_EVENT_TYPE_V1_DELETE_ROWS= 25,
   DRIZZLE_EVENT_TYPE_INCIDENT= 26,
   DRIZZLE_EVENT_TYPE_HEARTBEAT= 27,
+  DRIZZLE_EVENT_TYPE_IGNORABLE= 28,
+  DRIZZLE_EVENT_TYPE_ROWS_QUERY= 29,
+  DRIZZLE_EVENT_TYPE_V2_WRITE_ROWS= 30,
+  DRIZZLE_EVENT_TYPE_V2_UPDATE_ROWS= 31,
+  DRIZZLE_EVENT_TYPE_V2_DELETE_ROWS= 32,
+  DRIZZLE_EVENT_TYPE_GTID= 33,
+  DRIZZLE_EVENT_TYPE_ANONYMOUS_GTID= 34,
+  DRIZZLE_EVENT_TYPE_PREVIOUS_GTIDS= 35,
   DRIZZLE_EVENT_TYPE_END
 } drizzle_binlog_event_types_t;
 
@@ -604,15 +567,6 @@ typedef enum
   DRIZZLE_STMT_FETCHED
 } drizzle_stmt_state_t;
 
-typedef enum
-{
-  DRIZZLE_BIND_OPTION_NONE=         0,
-  DRIZZLE_BIND_OPTION_NULL=         (1 << 0),
-  DRIZZLE_BIND_OPTION_UNSIGNED=     (1 << 1),
-  DRIZZLE_BIND_OPTION_TRUNCATED=    (1 << 2),
-  DRIZZLE_BIND_OPTION_LONG_DATA=    (1 << 3)
-} drizzle_bind_options_t;
-
 #ifndef __cplusplus
 typedef enum drizzle_column_flags_t drizzle_column_flags_t;
 #endif
@@ -633,7 +587,6 @@ typedef struct drizzle_column_st drizzle_column_st;
 typedef struct drizzle_binlog_st drizzle_binlog_st;
 typedef struct drizzle_stmt_st drizzle_stmt_st;
 typedef struct drizzle_bind_st drizzle_bind_st;
-typedef struct drizzle_datetime_st drizzle_datetime_st;
 typedef char *drizzle_field_t;
 typedef drizzle_field_t *drizzle_row_t;
 

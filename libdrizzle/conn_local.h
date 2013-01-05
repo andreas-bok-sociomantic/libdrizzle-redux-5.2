@@ -2,6 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2012 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -58,8 +59,65 @@ extern "C" {
  * @param[in] con Connection structure previously initialized with
  *  drizzle_create(), drizzle_clone(), or related functions.
  */
-DRIZZLE_LOCAL
 void drizzle_reset_addrinfo(drizzle_st *con);
+
+/**
+ * Send raw command to server, possibly in parts.
+ *
+ * @param[in] con Connection structure previously initialized with
+ *  drizzle_create(), drizzle_clone(), or related functions.
+ * @param[in] result Caller allocated structure, or NULL to allocate one.
+ * @param[in] command Command to run on server.
+ * @param[in] data Data to send along with the command.
+ * @param[in] size Size of the current chunk of data being sent.
+ * @param[in] total Total size of all data being sent for command.
+ * @param[out] ret_ptr Standard drizzle return value.
+ * @return On success, a pointer to the (possibly allocated) structure. On
+ *  failure this will be NULL.
+ */
+drizzle_result_st *drizzle_command_write(drizzle_st *con,
+                                             drizzle_result_st *result,
+                                             drizzle_command_t command,
+                                             const void *data, size_t size,
+                                             size_t total,
+                                             drizzle_return_t *ret_ptr);
+/**
+ * Set TCP host and port for a connection.
+ *
+ * @param[in] con Connection structure previously initialized with
+ *  drizzle_create(), drizzle_clone(), or related functions.
+ * @param[in] host Host to use for this connection, NULL for default value.
+ * @param[in] port Port to use for this connection, 0 for default value.
+ */
+void drizzle_set_tcp(drizzle_st *con, const char *host, in_port_t port);
+
+/**
+ * Get unix domain socket for a connection.
+ *
+ * @param[in] con Connection structure previously initialized with
+ *  drizzle_create(), drizzle_clone(), or related functions.
+ * @return Unix domain socket set for this connection, NULL if not set.
+ */
+const char *drizzle_uds(const drizzle_st *con);
+
+/**
+ * Set username and password for a connection.
+ *
+ * @param[in] con Connection structure previously initialized with
+ *  drizzle_create(), drizzle_clone(), or related functions.
+ * @param[in] user Username to use for this connection.
+ * @param[in] password Password to use for this connection.
+ */
+void drizzle_set_auth(drizzle_st *con, const char *user, const char *password);
+
+/**
+ * Set database for a connection.
+ *
+ * @param[in] con Connection structure previously initialized with
+ *  drizzle_create(), drizzle_clone(), or related functions.
+ * @param[in] db Database to use with this connection.
+ */
+void drizzle_set_db(drizzle_st *con, const char *db);
  
 /**
  * Check if state stack is empty.

@@ -43,6 +43,8 @@
 #include "config.h"
 #include "libdrizzle/common.h"
 
+#include <cerrno>
+
 /**
  * @addtogroup drizzle_static Static Drizzle Declarations
  * @ingroup drizzle
@@ -55,11 +57,10 @@
 static const char *_verbose_name[DRIZZLE_VERBOSE_MAX]=
 {
   "NEVER",
-  "FATAL",
+  "CRITICAL",
   "ERROR",
   "INFO",
   "DEBUG",
-  "CRAZY"
 };
 
 /** @} */
@@ -174,6 +175,7 @@ drizzle_st *drizzle_create(void)
     return NULL;
   }
 
+  con->flags.is_shutdown= false;
   con->options= DRIZZLE_CON_NONE;
   con->packet_number= 0;
   con->protocol_version= 0;
@@ -242,7 +244,7 @@ void drizzle_free(drizzle_st *con)
 
   drizzle_result_free_all(con);
 
-  if (con->fd != -1)
+  if (con->fd != INVALID_SOCKET)
   {
     drizzle_close(con);
   }
@@ -331,13 +333,11 @@ drizzle_st *drizzle_ready(drizzle_st *con)
  */
 
 drizzle_st *drizzle_create_tcp(const char *host, in_port_t port,
-                                       const char *user, const char *password,
-                                       const char *db,
-                                       drizzle_options_t options)
+                               const char *user, const char *password,
+                               const char *db,
+                               drizzle_options_t options)
 {
-  drizzle_st *con;
-
-  con= drizzle_create();
+  drizzle_st *con= drizzle_create();
   if (con == NULL)
   {
     return NULL;
@@ -376,7 +376,7 @@ drizzle_st *drizzle_create_uds(const char *uds, const char *user,
  */
 
 void drizzle_set_error(drizzle_st *con, const char *function,
-                           const char *format, ...)
+                       const char *format, ...)
 {
   if (con == NULL)
   {

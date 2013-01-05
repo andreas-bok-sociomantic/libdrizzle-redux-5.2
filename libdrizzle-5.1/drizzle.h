@@ -36,63 +36,27 @@
 
 #pragma once
 
+#ifndef DRIZZLE_CLIENT_INTERFACE
+# error "You need to include libdrizzle-5.1/drizzle_client.h in your application"
+#endif
+
 /**
  * @file
  * @brief Drizzle Declarations
  */
 
-#include <sys/types.h>
-
 #ifdef _WIN32
-# define WIN32_LEAN_AND_MEAN
 
-# include <Windows.h>
-# include <winsock2.h>
-# include <ws2tcpip.h>
-# include <io.h>
-
-# undef close
-# define close _close
-typedef unsigned int in_port_t;
-typedef long ssize_t;
-
-# define snprintf _snprintf
-# define inline __inline
-
-struct sockaddr_un
-{
-  short int sun_family;
-  char sun_path[108];
-};
-
-# define poll WSAPoll
-//# define pollfd WSAPOLLFD
-
-#if defined(__GNUC__)
-# include <stdbool.h>
-#else
-# if !defined(__cplusplus)
-typedef enum { false = 0, true = 1 } _Bool;
-typedef _Bool bool;
-#endif 
-#endif
+typedef int in_port_t;
 
 #else
-# if !defined(__cplusplus)
-#  include <stdbool.h>
-# endif
 # include <sys/socket.h>
 # include <netinet/in.h>
 # include <arpa/inet.h>
 # include <sys/un.h>
 # include <netdb.h>
-# include <poll.h>
-#endif
-#ifdef USE_OPENSSL
-#include <openssl/ssl.h>
 #endif
 
-#include <libdrizzle-5.1/visibility.h>
 #include <libdrizzle-5.1/constants.h>
 #include <libdrizzle-5.1/structs.h>
 #include <libdrizzle-5.1/conn.h>
@@ -210,30 +174,6 @@ void drizzle_set_verbose(drizzle_st *con, drizzle_verbose_t verbose);
 DRIZZLE_API
 void drizzle_set_log_fn(drizzle_st *con, drizzle_log_fn *function,
                         void *context);
-
-/**
- * Initialize a connection structure. Always check the return value even if
- * passing in a pre-allocated structure. Some other initialization may have
- * failed.
- *
- * @param[in] drizzle Drizzle structure previously initialized with
- *  drizzle_create() or drizzle_clone().
- * @param[in] con Caller allocated structure, or NULL to allocate one.
- * @return On success, a pointer to the (possibly allocated) structure. On
- *  failure this will be NULL.
- */
-DRIZZLE_LOCAL
-drizzle_st *drizzle_create(void);
-
-/**
- * Free a connection structure.
- *
- * @param[in] con Connection structure previously initialized with
- *  drizzle_create(), drizzle_clone(), or related functions.
- */
-DRIZZLE_LOCAL
-void drizzle_free(drizzle_st *con);
-
 /**
  * Wait for I/O on connections.
  *
@@ -255,6 +195,14 @@ DRIZZLE_API
 drizzle_st *drizzle_ready(drizzle_st *con);
 
 /** @} */
+
+#include <stdio.h>
+static inline void drizzle_stderr_logger(const char *line, drizzle_verbose_t verbose, void *context)
+{
+  (void)context;
+  fprintf(stderr, "__LOG: %s: %s\n", drizzle_verbose_name(verbose), line);
+}
+
 
 #ifdef  __cplusplus
 }
