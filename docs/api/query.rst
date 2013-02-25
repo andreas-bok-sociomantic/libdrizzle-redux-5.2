@@ -6,6 +6,21 @@ Introduction
 
 This section outlines the query and result functions
 
+Structs
+-------
+
+.. c:type:: drizzle_query_st
+
+   The internal query object struct
+
+.. c:type:: drizzle_result_st
+
+   The internal result object struct
+
+.. c:type:: drizzle_column_st
+
+   The internal column object struct
+
 Functions
 ---------
 
@@ -27,54 +42,19 @@ Functions
 
    :param con: A connection object
    :param query: The query to execute
-   :param size: The length of the query string
+   :param size: The length of the query string, if set to 0 then :c:func:`strlen` is used to calculate the length
    :param ret_ptr: A pointer to a :c:type:`drizzle_return_t` to store the return status into
    :returns: A newly allocated result object
 
-.. c:function:: drizzle_result_st* drizzle_query_str(drizzle_st *con, const char *query, drizzle_return_t *ret_ptr)
+.. c:function:: ssize_t drizzle_escape_string(drizzle_st *con, char **to, const const char *from, const size_t from_size)
 
-   Executes a query using :c:func:`strlen` to calculate the length of the query
-   string and returns a newly allocated result struct
+   Escape a string for an SQL query.  The ``to`` parameter is allocated by the function and needs to be freed by the application when finished with.
 
-   :param con: A connection object
-   :param query: The query to execute
-   :param ret_ptr: A pointer to a :c:type:`drizzle_return_t` to store the return status into
-   :returns: A newly allocated result object
-
-.. c:function:: ssize_t drizzle_escape_string(char *to, const size_t max_to_size, const char *from, const size_t from_size)
-
-   Escape a string for an SQL query
-
+   :param con: a connection object
    :param to: the destination string
-   :param max_to_size: the maximum length of the 'to' parameter
    :param from: the source string
    :param from_size: the length of the source string
    :returns: the length of the 'to' string or -1 upon error due to empty parameters or overflow
-
-.. c:function:: bool drizzle_hex_string(char *to, const unsigned char *from, const size_t from_size)
-
-   Convert data into a hexadecimal string of the data.
-
-   .. note::
-      The allocated length of the 'to' string should always be at least double
-      the length of the 'from' string
-
-   :param to: the destination string
-   :param from: the source string
-   :param from_size: the length of the source string
-   :returns: a true upon success or false upon empty parameters
-
-.. c:function:: bool drizzle_mysql_password_hash(char *to, const char *from, const size_t from_size)
-
-   Convert data into a MySQL password hash string.
-
-   .. note::
-      The allocated length of the 'to' string should always be at least 41 bytes
-
-   :param to: the destination string
-   :param from: the source string:
-   :param from_size: the length of the source string
-   :returns: a true upons success or false upon empty parameters
 
 .. c:function:: void drizzle_result_free(drizzle_result_st *result)
 

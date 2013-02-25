@@ -2,7 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
- * Copyright (C) 2012 Andrew Hutchings (andrew@linuxjedi.co.uk)
+ * Copyright (C) 2012-2013 Drizzle Developer Group
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,31 +35,86 @@
  *
  */
 
-#include <yatl/lite.h>
+#pragma once
 
-#include <libdrizzle-5.1/libdrizzle.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
-
-int main(int argc, char* argv[])
-{
-  const unsigned char in[6]= {0x00, 0xFF, 0x7F, 0x80, 0xB9, 0xC0};
-  char out[255];
-  bool result;
-
-  (void) argc;
-  (void) argv;
-
-  // Test for bad usage
-  result= drizzle_hex_string(out, in, 0);
-  ASSERT_EQ_(false, result, "Bad usage of drizzle_hex_string()");
-
-  result= drizzle_hex_string(out, in, sizeof(in));
-  ASSERT_EQ_(true, result, "Failed to get result");
-
-  ASSERT_STREQ_("00FF7F80B9C0", out, "Bad result data from drizzle_hex_string()");
-
-  return EXIT_SUCCESS;
+#define LIBDRIZZLE_LIST_ADD(__list, __obj) { \
+  if (__list ## _list != NULL) \
+    __list ## _list->prev= __obj; \
+  __obj->next= __list ## _list; \
+  __obj->prev= NULL; \
+  __list ## _list= __obj; \
+  __list ## _count++; \
 }
+
+#define LIBDRIZZLE_LIST_DEL(__list, __obj) { \
+  if (__list ## _list == __obj) \
+    __list ## _list= __obj->next; \
+  if (__obj->prev != NULL) \
+    __obj->prev->next= __obj->next; \
+  if (__obj->next != NULL) \
+    __obj->next->prev= __obj->prev; \
+  __list ## _count--; \
+}
+
+class Packet {
+public:
+  Packet():
+    _stack(true),
+    _drizzle(NULL),
+    _func(NULL),
+    next(NULL),
+    prev(NULL)
+  {
+  }
+
+  Packet(drizzle_st* drizzle_, drizzle_state_fn *func_):
+    _stack(false),
+    _drizzle(drizzle_),
+    _func(func_),
+    next(NULL),
+    prev(NULL)
+  {
+  }
+
+  ~Packet()
+  {
+  }
+
+  void init(drizzle_st* drizzle_)
+  {
+    _drizzle= drizzle_;
+  }
+
+  void clear()
+  {
+    _func= NULL;
+  }
+
+  bool stack() const
+  {
+    return _stack;
+  }
+
+  void func(drizzle_state_fn* func_)
+  {
+    _func= func_;
+  }
+
+  drizzle_return_t func()
+  {
+    assert(_drizzle);
+    if (_func)
+    {
+      return _func(_drizzle);
+    }
+
+    return DRIZZLE_RETURN_INVALID_ARGUMENT;
+  }
+
+public:
+  const bool _stack;
+  drizzle_st* _drizzle;
+  drizzle_state_fn *_func;
+  Packet *next;
+  Packet *prev;
+};

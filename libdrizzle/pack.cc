@@ -2,6 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -356,7 +357,7 @@ unsigned char *drizzle_pack_auth(drizzle_st *con, unsigned char *ptr,
   ptr[0]= 0;
   ptr++;
 
-  if (con->options & DRIZZLE_CON_RAW_SCRAMBLE && con->scramble != NULL)
+  if (con->options.raw_scramble && con->scramble != NULL)
   {
     ptr[0]= DRIZZLE_MAX_SCRAMBLE_SIZE;
     ptr++;
@@ -375,7 +376,7 @@ unsigned char *drizzle_pack_auth(drizzle_st *con, unsigned char *ptr,
     ptr[0]= DRIZZLE_MAX_SCRAMBLE_SIZE;
     ptr++;
 
-    if (con->options & DRIZZLE_CON_AUTH_PLUGIN)
+    if (con->options.auth_plugin)
     {
       snprintf((char *)ptr, DRIZZLE_MAX_SCRAMBLE_SIZE, "%s", con->password);
       ptr[DRIZZLE_MAX_SCRAMBLE_SIZE-1]= 0;

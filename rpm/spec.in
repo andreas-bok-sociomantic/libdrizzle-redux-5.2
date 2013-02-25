@@ -4,7 +4,7 @@ Version: @VERSION@
 Release: 1
 License: BSD
 Group: System Environment/Libraries
-BuildRequires: glib2-devel openssl-devel
+BuildRequires: zlib-devel openssl-devel
 URL: https://launchpad.net/libdrizzle
 
 Packager: Brian Aker <brian@tangent.org>
@@ -54,7 +54,6 @@ mkdir -p $RPM_BUILD_ROOT/
 %{_libdir}/libdrizzle.la
 %{_libdir}/libdrizzle.so
 %{_libdir}/libdrizzle.so.*
-%{_bindir}/drizzle_binlogs
 %{_bindir}/libdrizzle-config
 
 %files devel
@@ -63,7 +62,6 @@ mkdir -p $RPM_BUILD_ROOT/
 %{_includedir}/libdrizzle-5.1/binlog.h
 %{_includedir}/libdrizzle-5.1/column.h
 %{_includedir}/libdrizzle-5.1/column_client.h
-%{_includedir}/libdrizzle-5.1/command_client.h
 %{_includedir}/libdrizzle-5.1/conn.h
 %{_includedir}/libdrizzle-5.1/conn_client.h
 %{_includedir}/libdrizzle-5.1/constants.h
@@ -71,7 +69,6 @@ mkdir -p $RPM_BUILD_ROOT/
 %{_includedir}/libdrizzle-5.1/drizzle_client.h
 %{_includedir}/libdrizzle-5.1/error.h
 %{_includedir}/libdrizzle-5.1/field_client.h
-%{_includedir}/libdrizzle-5.1/handshake_client.h
 %{_includedir}/libdrizzle-5.1/libdrizzle.h
 %{_includedir}/libdrizzle-5.1/query.h
 %{_includedir}/libdrizzle-5.1/result.h

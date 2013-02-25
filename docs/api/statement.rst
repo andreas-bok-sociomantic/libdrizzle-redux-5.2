@@ -6,6 +6,17 @@ Introduction
 
 This section outlines the prepared statement functionality
 
+Structs
+-------
+
+.. c:type:: drizzle_stmt_st
+
+   The internal struct containing the prepared statment object
+
+.. c:type:: drizzle_datetime_st
+
+   The internal struct for passing a date/time to/from the prepared statement API
+
 Functions
 ---------
 
@@ -310,6 +321,8 @@ Functions
 .. c:function:: uint64_t drizzle_stmt_row_count(drizzle_stmt_st *stmt)
 
    Gets the row count for a statement buffered with :c:func:`drizzle_stmt_buffer`
+
+   On error it returns UINT64_MAX;
 
    :param stmt: The prepared statement object
    :returns: The row count

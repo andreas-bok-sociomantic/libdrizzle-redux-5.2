@@ -2,6 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -91,10 +92,10 @@ drizzle_return_t drizzle_state_command_write(drizzle_st *con)
                     + strlen(con->db) + 1;
 
     /* Flush buffer if there is not enough room. */
-    free_size= (size_t)DRIZZLE_MAX_BUFFER_SIZE - (size_t)(start - con->buffer);
+    free_size= con->buffer_allocation - (size_t)(start - con->buffer);
     if (free_size < con->packet_size)
     {
-      drizzle_state_push(con, drizzle_state_write);
+      con->push_state(drizzle_state_write);
       return DRIZZLE_RETURN_OK;
     }
 
@@ -155,18 +156,17 @@ drizzle_return_t drizzle_state_command_write(drizzle_st *con)
 
   if (con->command_offset == con->command_total)
   {
-    drizzle_state_pop(con);
+    con->pop_state();
 
-    if (!(con->options & (DRIZZLE_CON_RAW_PACKET |
-                          DRIZZLE_CON_NO_RESULT_READ)) &&
+    if (!(con->state.raw_packet || con->state.no_result_read) &&
         con->command != DRIZZLE_COMMAND_FIELD_LIST)
     {
-      drizzle_state_push(con, drizzle_state_result_read);
-      drizzle_state_push(con, drizzle_state_packet_read);
+      con->push_state(drizzle_state_result_read);
+      con->push_state(drizzle_state_packet_read);
     }
   }
 
-  drizzle_state_push(con, drizzle_state_write);
+  con->push_state(drizzle_state_write);
 
   return DRIZZLE_RETURN_OK;
 }

@@ -1,6 +1,7 @@
 /*
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -105,16 +106,6 @@ DRIZZLE_API
 const char *drizzle_error(const drizzle_st *con);
 
 /**
- * Value of errno in the case of a DRIZZLE_RETURN_ERRNO return value.
- *
- * @param[in] con Connection structure previously initialized with
- *  drizzle_create(), drizzle_clone(), or related functions.
- * @return An errno value as defined in your system errno.h file.
- */
-DRIZZLE_API
-int drizzle_errno(const drizzle_st *con);
-
-/**
  * Get server defined error code for the last result read.
  *
  * @param[in] con Connection structure previously initialized with
@@ -134,48 +125,47 @@ uint16_t drizzle_error_code(const drizzle_st *con);
 DRIZZLE_API
 const char *drizzle_sqlstate(const drizzle_st *con);
 
-/**
- * Get options for a connection.
- *
- * @param[in] con Connection structure previously initialized with
- *  drizzle_create(), drizzle_clone(), or related functions.
- * @return Options set for the connection structure.
- */
 DRIZZLE_API
-drizzle_options_t drizzle_options(const drizzle_st *con);
+drizzle_options_st *drizzle_options_create(void);
 
-/**
- * Set options for a connection.
- *
- * @param[in] con Connection structure previously initialized with
- *  drizzle_create(), drizzle_clone(), or related functions.
- * @param[in] options Available options for connection structure to set.
- */
 DRIZZLE_API
-void drizzle_set_options(drizzle_st *con,
-                             drizzle_options_t options);
+void drizzle_options_destroy(drizzle_options_st *options);
 
-/**
- * Add options for a connection.
- *
- * @param[in] con Connection structure previously initialized with
- *  drizzle_create(), drizzle_clone(), or related functions.
- * @param[in] options Available options for connection structure to set.
- */
 DRIZZLE_API
-void drizzle_add_options(drizzle_st *con,
-                             drizzle_options_t options);
+void drizzle_options_set_non_blocking(drizzle_options_st *options, bool state);
 
-/**
- * Remove options for a connection.
- *
- * @param[in] con Connection structure previously initialized with
- *  drizzle_create(), drizzle_clone(), or related functions.
- * @param[in] options Available options for connection structure to remove.
- */
 DRIZZLE_API
-void drizzle_remove_options(drizzle_st *con,
-                                drizzle_options_t options);
+bool drizzle_options_get_non_blocking(drizzle_options_st *options);
+
+DRIZZLE_API
+void drizzle_options_set_raw_scramble(drizzle_options_st *options, bool state);
+
+DRIZZLE_API
+bool drizzle_options_get_raw_scramble(drizzle_options_st *options);
+
+DRIZZLE_API
+void drizzle_options_set_found_rows(drizzle_options_st *options, bool state);
+
+DRIZZLE_API
+bool drizzle_options_get_found_rows(drizzle_options_st *options);
+
+DRIZZLE_API
+void drizzle_options_set_interactive(drizzle_options_st *options, bool state);
+
+DRIZZLE_API
+bool drizzle_options_get_interactive(drizzle_options_st *option);
+
+DRIZZLE_API
+void drizzle_options_set_multi_statements(drizzle_options_st *options, bool state);
+
+DRIZZLE_API
+bool drizzle_options_get_multi_statements(drizzle_options_st *options);
+
+DRIZZLE_API
+void drizzle_options_set_auth_plugin(drizzle_options_st *options, bool state);
+
+DRIZZLE_API
+bool drizzle_options_get_auth_plugin(drizzle_options_st *options);
 
 /**
  * Get TCP host for a connection.
@@ -196,17 +186,6 @@ const char *drizzle_host(const drizzle_st *con);
  */
 DRIZZLE_API
 in_port_t drizzle_port(const drizzle_st *con);
-
-/**
- * Set unix domain socket for a connection.
- *
- * @param[in] con Connection structure previously initialized with
- *  drizzle_create(), drizzle_clone(), or related functions.
- * @param[in] uds Unix domain socket to use for this connection, NULL for
- *  defailt value.
- */
-DRIZZLE_API
-void drizzle_set_uds(drizzle_st *con, const char *uds);
 
 /**
  * Get username for a connection.

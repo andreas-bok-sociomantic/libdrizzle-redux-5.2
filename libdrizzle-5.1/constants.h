@@ -2,6 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2011 Brian Aker (brian@tangent.org)
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
@@ -78,7 +79,8 @@ extern "C" {
 #define DRIZZLE_MAX_COLUMN_NAME_SIZE     2048
 #define DRIZZLE_MAX_DEFAULT_VALUE_SIZE   2048
 #define DRIZZLE_MAX_PACKET_SIZE          UINT32_MAX
-#define DRIZZLE_MAX_BUFFER_SIZE          32768
+#define DRIZZLE_MAX_BUFFER_SIZE          1024*1024*1024
+#define DRIZZLE_DEFAULT_BUFFER_SIZE      1024*1024
 #define DRIZZLE_BUFFER_COPY_THRESHOLD    8192
 #define DRIZZLE_MAX_SERVER_VERSION_SIZE  32
 #define DRIZZLE_MAX_SERVER_EXTRA_SIZE    32
@@ -86,8 +88,8 @@ extern "C" {
 #define DRIZZLE_STATE_STACK_SIZE         8
 #define DRIZZLE_ROW_GROW_SIZE            8192
 #define DRIZZLE_DEFAULT_SOCKET_TIMEOUT   10
-#define DRIZZLE_DEFAULT_SOCKET_SEND_SIZE 32768
-#define DRIZZLE_DEFAULT_SOCKET_RECV_SIZE 32768
+#define DRIZZLE_DEFAULT_SOCKET_SEND_SIZE DRIZZLE_DEFAULT_BUFFER_SIZE
+#define DRIZZLE_DEFAULT_SOCKET_RECV_SIZE DRIZZLE_DEFAULT_BUFFER_SIZE
 #define DRIZZLE_MYSQL_PASSWORD_HASH      41
 #define DRIZZLE_BINLOG_CRC32_LEN         4
 // If this version or higher then we are doing checksums
@@ -96,29 +98,6 @@ extern "C" {
 #define DRIZZLE_BINLOG_MAGIC             "\xFE\x62\x69\x6E"
 
 /** @} */
-
-/**
- * @ingroup drizzle_con
- * Options for drizzle_st.
- */
-enum drizzle_options_t
-{
-  DRIZZLE_CON_NONE=                 0,
-  DRIZZLE_CON_OPTIONS_NON_BLOCKING= (1 << 0),
-  DRIZZLE_CON_RAW_PACKET=           (1 << 2),
-  DRIZZLE_CON_RAW_SCRAMBLE=         (1 << 3),
-  DRIZZLE_CON_READY=                (1 << 4),
-  DRIZZLE_CON_NO_RESULT_READ=       (1 << 5),
-  DRIZZLE_CON_IO_READY=             (1 << 6),
-  DRIZZLE_CON_FOUND_ROWS=           (1 << 9),
-  DRIZZLE_CON_INTERACTIVE=          (1 << 11),
-  DRIZZLE_CON_MULTI_STATEMENTS=     (1 << 12),
-  DRIZZLE_CON_AUTH_PLUGIN=          (1 << 13)
-};
-
-#ifndef __cplusplus
-typedef enum drizzle_options_t drizzle_options_t;
-#endif
 
 #ifndef __cplusplus
 typedef enum drizzle_socket_t drizzle_socket_t;
@@ -582,9 +561,11 @@ typedef enum drizzle_column_flags_t drizzle_column_flags_t;
 typedef struct drizzle_tcp_st drizzle_tcp_st;
 typedef struct drizzle_uds_st drizzle_uds_st;
 typedef struct drizzle_st drizzle_st;
+typedef struct drizzle_options_st drizzle_options_st;
 typedef struct drizzle_result_st drizzle_result_st;
 typedef struct drizzle_column_st drizzle_column_st;
 typedef struct drizzle_binlog_st drizzle_binlog_st;
+typedef struct drizzle_binlog_event_st drizzle_binlog_event_st;
 typedef struct drizzle_stmt_st drizzle_stmt_st;
 typedef struct drizzle_bind_st drizzle_bind_st;
 typedef char *drizzle_field_t;
@@ -592,6 +573,8 @@ typedef drizzle_field_t *drizzle_row_t;
 
 typedef void (drizzle_log_fn)(const char *line, drizzle_verbose_t verbose,
                               void *context);
+typedef void (drizzle_binlog_fn)(drizzle_binlog_event_st *event, void *context);
+typedef void (drizzle_binlog_error_fn)(drizzle_return_t error, drizzle_st *con, void *context);
 typedef drizzle_return_t (drizzle_state_fn)(drizzle_st *con);
 typedef void (drizzle_context_free_fn)(drizzle_st *con,
                                            void *context);

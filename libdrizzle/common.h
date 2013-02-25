@@ -1,6 +1,7 @@
 /*
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -44,12 +45,13 @@
 #include <libdrizzle-5.1/drizzle_client.h>
 
 #include <cassert>
+#include <new>
 
 #ifdef HAVE_FCNTL_H
 # include <fcntl.h>
 #endif
 
-#if defined(WIN32) || defined(__MINGW32__)
+#if defined(_WIN32) || defined(__MINGW32__)
 # include "libdrizzle/windows.hpp"
 # define get_socket_errno() WSAGetLastError()
 
@@ -63,7 +65,7 @@
 # define closesocket(a) close(a)
 # define get_socket_errno() errno
 
-#endif // defined(WIN32) || defined(__MINGW32__)
+#endif // defined(_WIN32) || defined(__MINGW32__)
 
 #if defined(HAVE_POLL_H) && HAVE_POLL_H
 # include <poll.h>
@@ -87,5 +89,7 @@ typedef struct pollfd pollfd_t;
 #include "libdrizzle/statement_local.h"
 #include "libdrizzle/column.h"
 #include "libdrizzle/binlog.h"
+#include "libdrizzle/handshake_client.h"
+#include "libdrizzle/result.h"
 
 #include <memory.h>

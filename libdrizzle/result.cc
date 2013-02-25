@@ -2,6 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -55,44 +56,12 @@ drizzle_result_st *drizzle_result_create(drizzle_st *con)
     return NULL;
   }
 
-  result= (drizzle_result_st*)malloc(sizeof(drizzle_result_st));
+  result= new (std::nothrow) drizzle_result_st;
   if (result == NULL)
   {
     drizzle_set_error(con, __func__, "Failed to allocate.");
     return NULL;
   }
-
-  result->binlog_checksums= false;
-  result->binlog_event= NULL;
-  result->column_list= NULL;
-  result->options= DRIZZLE_RESULT_NONE;
-  result->prev= NULL;
-  result->column_buffer= NULL;
-  result->row= NULL;
-  result->error_code= 0;
-  result->insert_id= 0;
-  result->warning_count= 0;
-  result->affected_rows= 0;
-  result->column_count= 0;
-  result->column_current= 0;
-  result->column= NULL;
-  result->row_count= 0;
-  result->row_current= 0;
-  result->field_current= 0;
-  result->field_total= 0;
-  result->field_offset= 0;
-  result->field_size= 0;
-  result->field= NULL;
-  result->field_buffer= NULL;
-  result->row_list_size= 0;
-  result->row_list= NULL;
-  result->field_sizes= NULL;
-  result->field_sizes_list= NULL;
-  result->info[0]= '\0';
-  result->sqlstate[0]= '\0';
-  result->null_bitmap_list= NULL;
-  result->null_bitmap= NULL;
-  result->binary_rows= false;
 
   result->con= con;
   con->result= result;
@@ -115,18 +84,12 @@ void drizzle_result_free(drizzle_result_st *result)
     return;
   }
 
-  if (result->binlog_event != NULL)
-  {
-    free(result->binlog_event->data);
-    free(result->binlog_event);
-  }
-
   for (column= result->column_list; column != NULL; column= result->column_list)
   {
     drizzle_column_free(column);
   }
 
-  free(result->column_buffer);
+  delete[] result->column_buffer;
 
   if (result->options & DRIZZLE_RESULT_BUFFER_ROW)
   {
@@ -136,7 +99,7 @@ void drizzle_result_free(drizzle_result_st *result)
       drizzle_row_free(result, result->row_list[x]);
       if (result->null_bitmap_list != NULL)
       {
-        free(result->null_bitmap_list[x]);
+        delete[] result->null_bitmap_list[x];
       }
     }
     if (result->null_bitmap_list != NULL)
@@ -163,7 +126,7 @@ void drizzle_result_free(drizzle_result_st *result)
     result->next->prev= result->prev;
   }
 
-  free(result);
+  delete result;
 }
 
 void drizzle_result_free_all(drizzle_st *con)
@@ -298,7 +261,7 @@ drizzle_result_st *drizzle_result_read(drizzle_st *con,
     return NULL;
   }
 
-  if (drizzle_state_none(con))
+  if (con->has_state())
   {
     con->result= drizzle_result_create(con);
     if (con->result == NULL)
@@ -307,8 +270,8 @@ drizzle_result_st *drizzle_result_read(drizzle_st *con,
       return NULL;
     }
 
-    drizzle_state_push(con, drizzle_state_result_read);
-    drizzle_state_push(con, drizzle_state_packet_read);
+    con->push_state(drizzle_state_result_read);
+    con->push_state(drizzle_state_packet_read);
   }
 
   *ret_ptr= drizzle_state_loop(con);
@@ -360,9 +323,15 @@ drizzle_return_t drizzle_result_buffer(drizzle_result_st *result)
       }
       if (result->binary_rows)
       {
-        result->null_bitmap_list= (uint8_t**)realloc(result->null_bitmap_list, sizeof(uint8_t*) * ((size_t)(result->row_list_size) + DRIZZLE_ROW_GROW_SIZE));
+        uint8_t **null_bitmap_list= (uint8_t**)realloc(result->null_bitmap_list, sizeof(uint8_t*) * ((size_t)(result->row_list_size) + DRIZZLE_ROW_GROW_SIZE));
+        if (null_bitmap_list == NULL)
+        {
+          drizzle_row_free(result, row);
+          drizzle_set_error(result->con, __func__, "Failed to realloc null_bitmap_list.");
+          return DRIZZLE_RETURN_MEMORY;
+        }
+        result->null_bitmap_list= null_bitmap_list;
       }
-
       result->row_list= row_list;
 
       field_sizes_list= (size_t **)realloc(result->field_sizes_list, sizeof(size_t *) * ((size_t)(result->row_list_size) + DRIZZLE_ROW_GROW_SIZE));
@@ -419,7 +388,7 @@ drizzle_return_t drizzle_state_result_read(drizzle_st *con)
   /* Assume the entire result packet will fit in the buffer. */
   if (con->buffer_size < con->packet_size)
   {
-    drizzle_state_push(con, drizzle_state_read);
+    con->push_state(drizzle_state_read);
     return DRIZZLE_RETURN_OK;
   }
 
@@ -501,6 +470,6 @@ drizzle_return_t drizzle_state_result_read(drizzle_st *con)
     con->packet_size= 0;
   }
 
-  drizzle_state_pop(con);
+  con->pop_state();
   return ret;
 }

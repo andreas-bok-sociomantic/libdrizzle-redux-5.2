@@ -2,6 +2,7 @@
  *
  *  Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -68,10 +69,10 @@ uint64_t drizzle_row_read(drizzle_result_st *result, drizzle_return_t *ret_ptr)
     return 0;
   }
 
-  if (drizzle_state_none(result->con))
+  if (result->has_state())
   {
-    drizzle_state_push(result->con, drizzle_state_row_read);
-    drizzle_state_push(result->con, drizzle_state_packet_read);
+    result->push_state(drizzle_state_row_read);
+    result->push_state(drizzle_state_packet_read);
   }
 
   *ret_ptr= drizzle_state_loop(result->con);
@@ -105,7 +106,7 @@ drizzle_row_t drizzle_row_buffer(drizzle_result_st *result,
       return NULL;
     }
 
-    result->row= (drizzle_row_t)realloc(NULL, (sizeof(drizzle_field_t) + sizeof(size_t)) * result->column_count);
+    result->row= new (std::nothrow) drizzle_field_t[sizeof(size_t) * result->column_count];
     if (result->row == NULL)
     {
       drizzle_set_error(result->con, __func__, "Failed to allocate.");
@@ -126,7 +127,7 @@ drizzle_row_t drizzle_row_buffer(drizzle_result_st *result,
     {
       if (*ret_ptr != DRIZZLE_RETURN_IO_WAIT)
       {
-        free(result->row);
+        delete[] result->row;
         result->row= NULL;
         result->field_sizes= NULL;
       }
@@ -159,7 +160,7 @@ void drizzle_row_free(drizzle_result_st *result, drizzle_row_t row)
     drizzle_field_free(row[x]);
   }
 
-  free(row);
+  delete[] row;
 }
 
 size_t *drizzle_row_field_sizes(drizzle_result_st *result)
@@ -262,7 +263,7 @@ drizzle_return_t drizzle_state_row_read(drizzle_st *con)
   if (con->packet_size != 0 && con->buffer_size < con->packet_size && 
     con->buffer_size < 5)
   {
-    drizzle_state_push(con, drizzle_state_read);
+    con->push_state(drizzle_state_read);
     return DRIZZLE_RETURN_OK;
   }
 
@@ -277,8 +278,8 @@ drizzle_return_t drizzle_state_row_read(drizzle_st *con)
   }
   else if (con->buffer_ptr[0] == 255)
   {
-    drizzle_state_pop(con);
-    drizzle_state_push(con, drizzle_state_result_read);
+    con->pop_state();
+    con->push_state(drizzle_state_result_read);
     return DRIZZLE_RETURN_OK;
   }
   else if (con->result->options & DRIZZLE_RESULT_ROW_BREAK)
@@ -292,7 +293,7 @@ drizzle_return_t drizzle_state_row_read(drizzle_st *con)
     con->result->field_current= 0;
   }
 
-  drizzle_state_pop(con);
+  con->pop_state();
   return DRIZZLE_RETURN_OK;
 }
 

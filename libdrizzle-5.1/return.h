@@ -1,6 +1,7 @@
 /*
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2012-2013 Drizzle Developer Group
  * Copyright (C) 2012 Brian Aker (brian@tangent.org)
  * All rights reserved.
  *
@@ -80,3 +81,23 @@ enum drizzle_return_t
 #ifndef __cplusplus
 typedef enum drizzle_return_t drizzle_return_t;
 #endif
+
+static inline bool drizzle_success(drizzle_return_t ret)
+{
+  if (ret == DRIZZLE_RETURN_OK)
+  {
+    return true;
+  }
+
+  return false;
+}
+
+static inline bool drizzle_failed(drizzle_return_t ret)
+{
+  if (ret != DRIZZLE_RETURN_OK)
+  {
+    return true;
+  }
+
+  return false;
+}

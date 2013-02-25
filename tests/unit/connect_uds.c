@@ -1,8 +1,8 @@
-/* vim:expandtab:shiftwidth=2:tabstop=2:smarttab:
+/*  vim:expandtab:shiftwidth=2:tabstop=2:smarttab: 
  *
- * Drizzle Client & Protocol Library
+ *  Drizzle Client & Protocol Library
  *
- * Copyright (C) 2012 Andrew Hutchings (andrew@linuxjedi.co.uk)
+ * Copyright (C) 2013 Drizzle Developer Group
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,41 +37,48 @@
 
 #include <yatl/lite.h>
 
+#include "tests/unit/cleanup.h"
+
 #include <libdrizzle-5.1/libdrizzle.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-  const char* in= "a nice passphrase";
-  char out[255];
-  bool result;
-
   (void) argc;
   (void) argv;
 
-  // Test for bad usage
-  result= drizzle_mysql_password_hash(out, in, 0);
-  if (result)
+  con= drizzle_create(getenv("MYSQL_SOCK"),
+                      0,
+                      getenv("MYSQL_USER"),
+                      getenv("MYSQL_PASSWORD"),
+                      getenv("MYSQL_SCHEMA"), 0);
+  CLOSE_ON_EXIT(con);
+  ASSERT_NOT_NULL_(con, "Drizzle connection object creation error");
+
+  drizzle_return_t ret= drizzle_connect(con);
+  SKIP_IF_(ret == DRIZZLE_RETURN_COULD_NOT_CONNECT, "%s(%s)", drizzle_error(con), drizzle_strerror(ret));
+  ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "%s socket: %s", drizzle_strerror(ret), getenv("MYSQL_SOCK"));
+
+  drizzle_query(con, "SELECT 1", 0, &ret);
+  ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "SELECT 1 (%s)", drizzle_error(con));
+
+  // Now that we know everything is good... lets push it.
+  drizzle_close(con);
+
+  int limit= 20;
+  while (--limit)
   {
-    printf("Usage test failure\n");
-    return EXIT_FAILURE;
+    ret= drizzle_connect(con);
+    ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "%s(%s)", drizzle_error(con), drizzle_strerror(ret));
+
+    drizzle_query(con, "SELECT 1", 0, &ret);
+    ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "SELECT 1 (%s)", drizzle_error(con));
+
+    // Now that we know everything is good... lets push it.
+    drizzle_close(con);
   }
 
-  result= drizzle_mysql_password_hash(out, in, strlen(in));
-  if (!result)
-  {
-    printf("Didn't get a result failure\n");
-    return EXIT_FAILURE;
-  }
-
-  if (strcmp(out, "597B78D6E0366308739CEBB0E221B246F117E111") != 0)
-  {
-    printf("Password output didn't match\n");
-    return EXIT_FAILURE;
-  }
   return EXIT_SUCCESS;
 }

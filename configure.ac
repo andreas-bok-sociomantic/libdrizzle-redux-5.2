@@ -6,7 +6,7 @@
 # Use and distribution licensed under the BSD license.  See
 # the COPYING file in this directory for full text.
 
-AC_INIT([libdrizzle],[5.1.1],[http://bugs.launchpad.net/drizzle],[libdrizzle],[http://drizzle.org/])
+AC_INIT([libdrizzle],[5.2.0],[http://bugs.launchpad.net/drizzle],[libdrizzle],[http://drizzle.org/])
 
 AC_CONFIG_AUX_DIR([build-aux])
 
@@ -27,7 +27,7 @@ AC_CONFIG_HEADERS([config.h:config.in])dnl Keep filename to 8.3 for MS-DOS.
 AC_CONFIG_SRCDIR([libdrizzle/drizzle.cc])
 
 #shared library versioning
-LIBDRIZZLE_LIBRARY_VERSION=6:0:0
+LIBDRIZZLE_LIBRARY_VERSION=8:0:0
 #                         | | |
 #                  +------+ | +---+
 #                  |        |     |
@@ -58,7 +58,7 @@ AX_PROG_SPHINX_BUILD
 # Checks for libraries.
 AX_CXX_GCC_ABI_DEMANGLE
 
-AS_IF([test "x${target_os}" != "xmingw32"], [AX_CHECK_OPENSSL])
+AS_IF([test "x${TARGET_WINDOWS}" != "xtrue"],[AX_CHECK_OPENSSL])
 
 AC_PATH_ZLIB
 
@@ -88,9 +88,11 @@ AC_TYPE_SIZE_T
 
 # Checks for library functions.
 AC_CHECK_FUNCS([fcntl])
+AC_CHECK_FUNCS([on_exit])
 AC_CHECK_FUNCS([poll])
 AC_CHECK_FUNCS([ppoll])
 
+AX_PTHREAD(, [AC_MSG_ERROR(could not find libpthread)])
 AX_ENDIAN
 AX_HEX_VERSION([LIBDRIZZLE],[$VERSION])
 AX_HARDEN_COMPILER_FLAGS

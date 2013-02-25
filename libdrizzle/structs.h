@@ -2,6 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -63,6 +64,7 @@ extern "C" {
 #endif
 
 #include "libdrizzle/datetime.h"
+#include "libdrizzle/packet.h"
 
 #if defined _WIN32 || defined __CYGWIN__
 typedef SOCKET socket_t;
@@ -147,20 +149,58 @@ struct drizzle_uds_st
 /**
  * @ingroup drizzle_con
  */
+
+struct drizzle_options_st
+{
+  bool non_blocking;
+  bool raw_scramble;
+  bool found_rows;
+  bool interactive;
+  bool multi_statements;
+  bool auth_plugin;
+
+  drizzle_options_st() :
+    non_blocking(false),
+    raw_scramble(false),
+    found_rows(false),
+    interactive(false),
+    multi_statements(false),
+    auth_plugin(false)
+  { }
+};
+
 struct drizzle_st
 {
-  struct {
+  struct flags_t{
     bool is_shutdown;
+
+    flags_t() :
+      is_shutdown(false)
+    { }
   } flags;
   uint8_t packet_number;
   uint8_t protocol_version;
-  uint8_t state_current;
   short events;
   short revents;
   drizzle_capabilities_t capabilities;
   drizzle_charset_t charset;
   drizzle_command_t command;
-  drizzle_options_t options;
+  struct state_t
+  {
+    bool ready;
+    bool no_result_read;
+    bool io_ready;
+    bool raw_packet;
+
+    state_t() :
+      ready(false),
+      no_result_read(false),
+      io_ready(false),
+      raw_packet(false)
+    { }
+  } state;
+  
+  drizzle_options_st options;
   drizzle_socket_t socket_type;
   drizzle_status_t status;
   uint32_t max_packet_size;
@@ -187,13 +227,13 @@ struct drizzle_st
     drizzle_tcp_st tcp;
     drizzle_uds_st uds;
   } socket;
-  unsigned char buffer[DRIZZLE_MAX_BUFFER_SIZE];
+  unsigned char *buffer;
+  size_t buffer_allocation;
   char db[DRIZZLE_MAX_DB_SIZE];
   char password[DRIZZLE_MAX_PASSWORD_SIZE];
   unsigned char scramble_buffer[DRIZZLE_MAX_SCRAMBLE_SIZE];
   char server_version[DRIZZLE_MAX_SERVER_VERSION_SIZE];
   char server_extra[DRIZZLE_MAX_SERVER_EXTRA_SIZE];
-  drizzle_state_fn *state_stack[DRIZZLE_STATE_STACK_SIZE];
   char user[DRIZZLE_MAX_USER_SIZE];
 #ifdef USE_OPENSSL
   SSL_CTX *ssl_context;
@@ -213,97 +253,146 @@ struct drizzle_st
   char sqlstate[DRIZZLE_MAX_SQLSTATE_SIZE + 1];
   char last_error[DRIZZLE_MAX_ERROR_SIZE];
   drizzle_stmt_st *stmt;
-};
+  drizzle_binlog_st *binlog;
+private:
+  size_t _state_stack_count;
+  Packet *_state_stack_list;
+  Packet _stack_packets[DRIZZLE_STATE_STACK_SIZE];
+  size_t _free_packet_count;
+  Packet *_free_packet_list;
+public:
 
-/**
- * @ingroup drizzle_result
- */
-struct drizzle_result_st
-{
-  drizzle_st *con;
-  drizzle_result_st *next;
-  drizzle_result_st *prev;
-  drizzle_result_options_t options;
-
-  char info[DRIZZLE_MAX_INFO_SIZE];
-  uint16_t error_code;
-  char sqlstate[DRIZZLE_MAX_SQLSTATE_SIZE + 1];
-  uint64_t insert_id;
-  uint16_t warning_count;
-  uint64_t affected_rows;
-
-  uint16_t column_count;
-  uint16_t column_current;
-  drizzle_column_st *column_list;
-  drizzle_column_st *column;
-  drizzle_column_st *column_buffer;
-
-  uint64_t row_count;
-  uint64_t row_current;
-
-  uint16_t field_current;
-  size_t field_total;
-  size_t field_offset;
-  size_t field_size;
-  drizzle_field_t field;
-  drizzle_field_t field_buffer;
-
-  uint64_t row_list_size;
-  drizzle_row_t row;
-  drizzle_row_t *row_list;
-  size_t *field_sizes;
-  size_t **field_sizes_list;
-  drizzle_binlog_st *binlog_event;
-  bool binlog_checksums;
-  uint8_t **null_bitmap_list;
-  uint8_t *null_bitmap;
-  uint8_t null_bitmap_length;
-  bool binary_rows;
-
-#ifdef __cplusplus
-
-  drizzle_result_st() :
-    con(NULL),
-    next(NULL),
-    prev(NULL),
-    options(DRIZZLE_RESULT_NONE),
+  drizzle_st() :
+    packet_number(0),
+    protocol_version(0),
+    events(0),
+    revents(0),
+    capabilities(DRIZZLE_CAPABILITIES_NONE),
+    charset(DRIZZLE_CHARSET_NONE),
+    command(DRIZZLE_COMMAND_SLEEP),
+    socket_type(DRIZZLE_CON_SOCKET_TCP),
+    status(DRIZZLE_CON_STATUS_NONE),
+    max_packet_size(DRIZZLE_MAX_PACKET_SIZE),
+    result_count(0),
+    thread_id(0),
+    backlog(DRIZZLE_DEFAULT_BACKLOG),
+    fd(-1),
+    buffer_size(0),
+    command_offset(0),
+    command_size(0),
+    command_total(0),
+    packet_size(0),
+    addrinfo_next(NULL),
+    command_buffer(NULL),
+    command_data(NULL),
+    context(NULL),
+    context_free_fn(NULL),
+    result(NULL),
+    result_list(NULL),
+    scramble(NULL),
+    buffer_allocation(DRIZZLE_DEFAULT_BUFFER_SIZE),
+    ssl_context(NULL),
+    ssl(NULL),
+    ssl_state(DRIZZLE_SSL_STATE_NONE),
     error_code(0),
-    insert_id(0),
-    warning_count(0),
-    affected_rows(0),
-    column_count(0),
-    column_current(0),
-    column_list(NULL),
-    column(NULL),
-    column_buffer(NULL),
-    row_count(0),
-    row_current(0),
-    field_current(0),
-    field_total(0),
-    field_offset(0),
-    field_size(0),
-    field(),
-    field_buffer(),
-    row_list_size(0),
-    row(),
-    row_list(NULL),
-    field_sizes(NULL),
-    field_sizes_list(NULL),
-    binlog_event(NULL),
-    binlog_checksums(false),
-    null_bitmap_list(NULL),
-    null_bitmap(NULL),
-    null_bitmap_length(0),
-    binary_rows(false)
+    verbose(DRIZZLE_VERBOSE_NEVER),
+    last_errno(0),
+    timeout(-1),
+    log_fn(NULL),
+    log_context(NULL),
+    stmt(NULL),
+    binlog(NULL),
+    _state_stack_count(0),
+    _state_stack_list(NULL),
+    _free_packet_count(0),
+    _free_packet_list(NULL)
   {
-    info[0]= 0;
-    sqlstate[0]= 0;
+    db[0]= '\0';
+    password[0]= '\0';
+    server_version[0]= '\0';
+    user[0]= '\0';
+    sqlstate[0]= '\0';
+    last_error[0]= '\0';
+    buffer= (unsigned char*)malloc(DRIZZLE_DEFAULT_BUFFER_SIZE);
+    buffer_ptr= buffer;
+
+    assert(DRIZZLE_STATE_STACK_SIZE);
+    for (size_t x= 0; x < DRIZZLE_STATE_STACK_SIZE; ++x)
+    {
+      Packet *packet= &(_stack_packets[x]);
+      packet->init(this);
+      LIBDRIZZLE_LIST_ADD(_free_packet, packet);
+      assert(_free_packet_list);
+    }
   }
 
-#endif
+  ~drizzle_st()
+  {
+    clear_state();
+  }
+
+  bool push_state(drizzle_state_fn* func_)
+  {
+    Packet *tmp;
+    if (_free_packet_count)
+    {
+      tmp= _free_packet_list;
+      LIBDRIZZLE_LIST_DEL(_free_packet, tmp);
+      tmp->func(func_);
+    }
+    else
+    {
+      tmp= new (std::nothrow) Packet(this, func_);
+    }
+
+    if (tmp)
+    {
+      LIBDRIZZLE_LIST_ADD(_state_stack, tmp);
+      return true;
+    }
+
+    return false;
+  }
+
+  bool has_state() const
+  {
+    return _state_stack_count == 0;
+  }
+
+  drizzle_return_t current_state()
+  {
+    return _state_stack_list->func();
+  }
+
+  void pop_state()
+  {
+    Packet* tmp= _state_stack_list;
+    if (tmp)
+    {
+      LIBDRIZZLE_LIST_DEL(_state_stack, tmp);
+
+      if (tmp->stack())
+      {
+        tmp->clear();
+        LIBDRIZZLE_LIST_ADD(_free_packet, tmp);
+      }
+      else
+      {
+        delete tmp;
+      }
+    }
+  }
+
+  void clear_state()
+  {
+    while(_state_stack_list)
+    {
+      pop_state();
+    }
+  }
 };
 
-struct drizzle_binlog_st
+struct drizzle_binlog_event_st
 {
   uint32_t timestamp;
   drizzle_binlog_event_types_t type;
@@ -316,6 +405,38 @@ struct drizzle_binlog_st
   unsigned char *data;
   unsigned char *raw_data;
   uint32_t raw_length;
+  drizzle_binlog_event_st() :
+    timestamp(0),
+    type(DRIZZLE_EVENT_TYPE_UNKNOWN),
+    server_id(0),
+    length(0),
+    next_pos(0),
+    flags(0),
+    extra_flags(0),
+    checksum(0),
+    data(NULL),
+    raw_data(NULL),
+    raw_length(0)
+  { }
+};
+
+struct drizzle_binlog_st
+{
+  drizzle_binlog_fn *binlog_fn;
+  drizzle_binlog_error_fn *error_fn;
+  void *binlog_context;
+  drizzle_binlog_event_st event;
+  bool verify_checksums;
+  bool has_checksums;
+  drizzle_st *con;
+  drizzle_binlog_st() :
+    binlog_fn(NULL),
+    error_fn(NULL),
+    binlog_context(NULL),
+    verify_checksums(false),
+    has_checksums(false),
+    con(NULL)
+  { }
 };
 
 /**
@@ -341,6 +462,26 @@ struct drizzle_column_st
   uint8_t decimals;
   unsigned char default_value[DRIZZLE_MAX_DEFAULT_VALUE_SIZE];
   size_t default_value_size;
+
+  drizzle_column_st() :
+    result(NULL),
+    next(NULL),
+    prev(NULL),
+    options(DRIZZLE_COLUMN_UNUSED),
+    charset(DRIZZLE_CHARSET_NONE),
+    size(0),
+    max_size(0),
+    type(DRIZZLE_COLUMN_TYPE_NONE),
+    flags(DRIZZLE_COLUMN_FLAGS_NONE),
+    decimals(0),
+    default_value_size(0)
+  { 
+    catalog[0]= '\0';
+    db[0]= '\0';
+    table[0]= '\0';
+    orig_table[0] ='\0';
+    name[0]= '\0';
+  }
 };
 
 struct drizzle_stmt_st
@@ -357,22 +498,50 @@ struct drizzle_stmt_st
   drizzle_result_st *prepare_result;
   drizzle_result_st *execute_result;
   drizzle_column_st *fields;
+
+  drizzle_stmt_st() :
+    con(NULL),
+    state(DRIZZLE_STMT_NONE),
+    id(0),
+    param_count(0),
+    query_params(NULL),
+    result_params(NULL),
+    null_bitmap_length(0),
+    null_bitmap(NULL),
+    new_bind(true),
+    prepare_result(NULL),
+    execute_result(NULL),
+    fields(NULL)
+  { }
 };
 
 struct drizzle_bind_st
 {
   drizzle_column_type_t type;
   void *data;
+  char *data_buffer;
   uint32_t length;
   bool is_bound;
-  char *converted_data;
-  struct
+  struct options_t
   {
     bool is_null;
     bool is_unsigned;
     bool is_long_data;
-    bool is_allocated;
+
+    options_t() :
+      is_null(false),
+      is_unsigned(false),
+      is_long_data(false)
+    { }
   } options;
+  drizzle_bind_st() :
+    type(DRIZZLE_COLUMN_TYPE_NONE),
+    data(NULL),
+    length(0),
+    is_bound(false)
+  { 
+    data_buffer= new (std::nothrow) char[128];
+  }
 };
 
 #ifdef __cplusplus

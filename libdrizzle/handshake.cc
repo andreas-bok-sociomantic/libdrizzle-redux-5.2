@@ -2,6 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -49,10 +50,10 @@
 
 drizzle_return_t drizzle_handshake_server_read(drizzle_st *con)
 {
-  if (drizzle_state_none(con))
+  if (con->has_state())
   {
-    drizzle_state_push(con, drizzle_state_handshake_server_read);
-    drizzle_state_push(con, drizzle_state_packet_read);
+    con->push_state(drizzle_state_handshake_server_read);
+    con->push_state(drizzle_state_packet_read);
   }
 
   return drizzle_state_loop(con);
@@ -60,15 +61,15 @@ drizzle_return_t drizzle_handshake_server_read(drizzle_st *con)
 
 drizzle_return_t drizzle_handshake_client_write(drizzle_st *con)
 {
-  if (drizzle_state_none(con))
+  if (con->has_state())
   {
-    drizzle_state_push(con, drizzle_state_write);
-    drizzle_state_push(con, drizzle_state_handshake_client_write);
+    con->push_state(drizzle_state_write);
+    con->push_state(drizzle_state_handshake_client_write);
 
     if (con->ssl)
     {
-      drizzle_state_push(con, drizzle_state_write);
-      drizzle_state_push(con, drizzle_state_handshake_ssl_client_write);
+      con->push_state(drizzle_state_write);
+      con->push_state(drizzle_state_handshake_ssl_client_write);
     }
   }
 
@@ -94,7 +95,7 @@ drizzle_return_t drizzle_state_handshake_server_read(drizzle_st *con)
   /* Assume the entire handshake packet will fit in the buffer. */
   if (con->buffer_size < con->packet_size)
   {
-    drizzle_state_push(con, drizzle_state_read);
+    con->push_state(drizzle_state_read);
     return DRIZZLE_RETURN_OK;
   }
 
@@ -198,18 +199,18 @@ drizzle_return_t drizzle_state_handshake_server_read(drizzle_st *con)
 
   con->buffer_ptr= con->buffer;
 
-  drizzle_state_pop(con);
+  con->pop_state();
 
-  if (!(con->options & DRIZZLE_CON_RAW_PACKET))
+  if (con->state.raw_packet == false)
   {
-    drizzle_state_push(con, drizzle_state_handshake_result_read);
-    drizzle_state_push(con, drizzle_state_packet_read);
-    drizzle_state_push(con, drizzle_state_write);
-    drizzle_state_push(con, drizzle_state_handshake_client_write);
+    con->push_state(drizzle_state_handshake_result_read);
+    con->push_state(drizzle_state_packet_read);
+    con->push_state(drizzle_state_write);
+    con->push_state(drizzle_state_handshake_client_write);
     if (con->ssl)
     {
-      drizzle_state_push(con, drizzle_state_write);
-      drizzle_state_push(con, drizzle_state_handshake_ssl_client_write);
+      con->push_state(drizzle_state_write);
+      con->push_state(drizzle_state_handshake_ssl_client_write);
     }
   }
 
@@ -240,7 +241,7 @@ drizzle_return_t drizzle_state_handshake_server_write(drizzle_st *con)
                   + 1;  /* NULL */
 
   /* Assume the entire handshake packet will fit in the buffer. */
-  if ((con->packet_size + 4) > DRIZZLE_MAX_BUFFER_SIZE)
+  if ((con->packet_size + 4) > con->buffer_allocation)
   {
     drizzle_set_error(con, "drizzle_state_handshake_server_write",
                       "buffer too small:%zu", con->packet_size + 4);
@@ -319,7 +320,7 @@ drizzle_return_t drizzle_state_handshake_server_write(drizzle_st *con)
     return DRIZZLE_RETURN_INTERNAL_ERROR;
   }
 
-  drizzle_state_pop(con);
+  con->pop_state();
   return DRIZZLE_RETURN_OK;
 }
 
@@ -337,7 +338,7 @@ drizzle_return_t drizzle_state_handshake_client_read(drizzle_st *con)
   /* Assume the entire handshake packet will fit in the buffer. */
   if (con->buffer_size < con->packet_size)
   {
-    drizzle_state_push(con, drizzle_state_read);
+    con->push_state(drizzle_state_read);
     return DRIZZLE_RETURN_OK;
   }
 
@@ -470,7 +471,7 @@ drizzle_return_t drizzle_state_handshake_client_read(drizzle_st *con)
 
   con->buffer_ptr= con->buffer;
 
-  drizzle_state_pop(con);
+  con->pop_state();
   return DRIZZLE_RETURN_OK;
 }
 
@@ -481,20 +482,22 @@ int drizzle_compile_capabilities(drizzle_st *con)
   con->capabilities = (drizzle_capabilities_t)((int)con->capabilities | (int)DRIZZLE_CAPABILITIES_PROTOCOL_41);
 
   capabilities= con->capabilities & DRIZZLE_CAPABILITIES_CLIENT;
-  if (!(con->options & DRIZZLE_CON_FOUND_ROWS))
+  if (con->options.found_rows == false)
+  {
     capabilities&= ~DRIZZLE_CAPABILITIES_FOUND_ROWS;
+  }
 
-  if (con->options & DRIZZLE_CON_INTERACTIVE)
+  if (con->options.interactive)
   {
     capabilities|= DRIZZLE_CAPABILITIES_INTERACTIVE;
   }
 
-  if (con->options & DRIZZLE_CON_MULTI_STATEMENTS)
+  if (con->options.multi_statements)
   {
     capabilities|= DRIZZLE_CAPABILITIES_MULTI_STATEMENTS;
   }
 
-  if (con->options & DRIZZLE_CON_AUTH_PLUGIN)
+  if (con->options.auth_plugin)
   {
     capabilities|= DRIZZLE_CAPABILITIES_PLUGIN_AUTH;
   }
@@ -548,7 +551,7 @@ drizzle_return_t drizzle_state_handshake_client_write(drizzle_st *con)
                   + strlen(con->db) + 1;
 
   /* Assume the entire handshake packet will fit in the buffer. */
-  if ((con->packet_size + 4) > DRIZZLE_MAX_BUFFER_SIZE)
+  if ((con->packet_size + 4) > con->buffer_allocation)
   {
     drizzle_set_error(con, "drizzle_state_handshake_client_write",
                       "buffer too small:%zu", con->packet_size + 4);
@@ -594,7 +597,7 @@ drizzle_return_t drizzle_state_handshake_client_write(drizzle_st *con)
   /* Store packet size now. */
   drizzle_set_byte3(con->buffer_ptr, con->packet_size);
 
-  drizzle_state_pop(con);
+  con->pop_state();
   return DRIZZLE_RETURN_OK;
 }
 
@@ -630,7 +633,7 @@ drizzle_return_t drizzle_state_handshake_ssl_client_write(drizzle_st *con)
 
   memset(ptr, 0, 23);
 
-  drizzle_state_pop(con);
+  con->pop_state();
   return DRIZZLE_RETURN_OK;
 }
 
@@ -652,7 +655,7 @@ drizzle_return_t drizzle_state_handshake_result_read(drizzle_st *con)
   con->result= result;
 
   drizzle_return_t ret= drizzle_state_result_read(con);
-  if (drizzle_state_none(con))
+  if (con->has_state())
   {
     if (ret == DRIZZLE_RETURN_OK)
     {
@@ -664,7 +667,7 @@ drizzle_return_t drizzle_state_handshake_result_read(drizzle_st *con)
       }
       else
       {
-        con->options = (drizzle_options_t)((int)con->options | (int)DRIZZLE_CON_READY);
+        con->state.ready= true;
       }
     }
   }

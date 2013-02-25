@@ -2,6 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -113,13 +114,13 @@ static bool connect_poll(drizzle_st *con)
     {
       if (fds[0].revents & (POLLIN))
       {
-        drizzle_log_crazy(con, "poll(POLLIN)");
+        drizzle_log_debug(con, "poll(POLLIN)");
         return true;
       }
 
       if (fds[0].revents & (POLLOUT))
       {
-        drizzle_log_crazy(con, "poll(POLLOUT)");
+        drizzle_log_debug(con, "poll(POLLOUT)");
         return true;
       }
 
@@ -155,7 +156,7 @@ static bool connect_poll(drizzle_st *con)
     else if (error == 0)
     {
       // "timeout occurred while trying to connect"
-      drizzle_log_crazy(con, "poll(TIMEOUT) %d", con->timeout);
+      drizzle_log_debug(con, "poll(TIMEOUT) %d", con->timeout);
       return false;
     }
 
@@ -220,14 +221,14 @@ void drizzle_close(drizzle_st *con)
 
   __closesocket(con->fd);
 
-  con->options = (drizzle_options_t)((int)con->options & (int)~DRIZZLE_CON_READY);
+  con->state.ready= false;
   con->packet_number= 0;
   con->buffer_ptr= con->buffer;
   con->buffer_size= 0;
   con->events= 0;
   con->revents= 0;
 
-  drizzle_state_reset(con);
+  con->clear_state();
 }
 
 drizzle_return_t drizzle_set_events(drizzle_st *con, short events)
@@ -250,7 +251,7 @@ drizzle_return_t drizzle_set_revents(drizzle_st *con, short revents)
   }
 
   if (revents != 0)
-    con->options = (drizzle_options_t)((int)con->options | (int)DRIZZLE_CON_IO_READY);
+    con->state.io_ready= true;
 
   con->revents= revents;
 
@@ -268,16 +269,6 @@ const char *drizzle_error(const drizzle_st *con)
   }
 
   return (const char *)con->last_error;
-}
-
-int drizzle_errno(const drizzle_st *con)
-{
-  if (con == NULL)
-  {
-    return 0;
-  }
-
-  return con->last_errno;
 }
 
 uint16_t drizzle_error_code(const drizzle_st *con)
@@ -300,47 +291,122 @@ const char *drizzle_sqlstate(const drizzle_st *con)
   return con->sqlstate;
 }
 
-drizzle_options_t drizzle_options(const drizzle_st *con)
+drizzle_options_st *drizzle_options_create(void)
 {
-  if (con == NULL)
-  {
-    return DRIZZLE_CON_NONE;
-  }
-
-  return drizzle_options_t(con->options);
+  return new (std::nothrow) drizzle_options_st;
 }
 
-void drizzle_set_options(drizzle_st *con,
-                             drizzle_options_t options)
+void drizzle_options_destroy(drizzle_options_st *options)
 {
-  if (con == NULL)
+  delete options;
+}
+
+void drizzle_options_set_non_blocking(drizzle_options_st *options, bool state)
+{
+  if (options == NULL)
   {
     return;
   }
-
-  con->options= options;
+  options->non_blocking= state;
 }
 
-void drizzle_add_options(drizzle_st *con,
-                             drizzle_options_t options)
+bool drizzle_options_get_non_blocking(drizzle_options_st *options)
 {
-  if (con == NULL)
+  if (options == NULL)
+  {
+    return false;
+  }
+  return options->non_blocking;
+}
+
+void drizzle_options_set_raw_scramble(drizzle_options_st *options, bool state)
+{
+  if (options == NULL)
   {
     return;
   }
-
-  con->options = (drizzle_options_t)((int)con->options | (int)options);
+  options->raw_scramble= state;
 }
 
-void drizzle_remove_options(drizzle_st *con,
-                                drizzle_options_t options)
+bool drizzle_options_get_raw_scramble(drizzle_options_st *options)
 {
-  if (con == NULL)
+  if (options == NULL)
+  {
+    return false;
+  }
+  return options->raw_scramble;
+}
+
+void drizzle_options_set_found_rows(drizzle_options_st *options, bool state)
+{
+  if (options == NULL)
   {
     return;
   }
+  options->found_rows= state;
+}
 
-  con->options = (drizzle_options_t)((int) con->options & (int)~options);
+bool drizzle_options_get_found_rows(drizzle_options_st *options)
+{
+  if (options == NULL)
+  {
+    return false;
+  }
+  return options->found_rows;
+}
+
+void drizzle_options_set_interactive(drizzle_options_st *options, bool state)
+{
+  if (options == NULL)
+  {
+    return;
+  }
+  options->interactive= state;
+}
+
+bool drizzle_options_get_interactive(drizzle_options_st *options)
+{
+  if (options == NULL)
+  {
+    return false;
+  }
+  return options->interactive;
+}
+
+void drizzle_options_set_multi_statements(drizzle_options_st *options, bool state)
+{
+  if (options == NULL)
+  {
+    return;
+  }
+  options->multi_statements= state;
+}
+
+bool drizzle_options_get_multi_statements(drizzle_options_st *options)
+{
+  if (options == NULL)
+  {
+    return false;
+  }
+  return options->multi_statements;
+}
+
+void drizzle_options_set_auth_plugin(drizzle_options_st *options, bool state)
+{
+  if (options == NULL)
+  {
+    return;
+  }
+  options->auth_plugin= state;
+}
+
+bool drizzle_options_get_auth_plugin(drizzle_options_st *options)
+{
+  if (options == NULL)
+  {
+    return false;
+  }
+  return options->auth_plugin;
 }
 
 const char *drizzle_host(const drizzle_st *con)
@@ -383,12 +449,13 @@ void drizzle_set_tcp(drizzle_st *con, const char *host, in_port_t port)
     return;
   }
 
-  drizzle_reset_addrinfo(con);
-
   con->socket_type= DRIZZLE_CON_SOCKET_TCP;
+  con->socket.tcp.addrinfo= NULL;
+  drizzle_reset_addrinfo(con);
 
   if (host == NULL)
   {
+    con->socket.tcp.port= 0;
     con->socket.tcp.host= NULL;
   }
   else
@@ -609,21 +676,21 @@ drizzle_return_t drizzle_connect(drizzle_st *con)
     return DRIZZLE_RETURN_INVALID_ARGUMENT;
   }
 
-  if (con->options & DRIZZLE_CON_READY)
+  if (con->state.ready)
   {
     return DRIZZLE_RETURN_OK;
   }
 
-  if (drizzle_state_none(con))
+  if (con->has_state())
   {
-    if (!(con->options & DRIZZLE_CON_RAW_PACKET))
+    if (con->state.raw_packet == false)
     {
-      drizzle_state_push(con, drizzle_state_handshake_server_read);
-      drizzle_state_push(con, drizzle_state_packet_read);
+      con->push_state(drizzle_state_handshake_server_read);
+      con->push_state(drizzle_state_packet_read);
     }
 
-    drizzle_state_push(con, drizzle_state_connect);
-    drizzle_state_push(con, drizzle_state_addrinfo);
+    con->push_state(drizzle_state_connect);
+    con->push_state(drizzle_state_addrinfo);
   }
 
   return drizzle_state_loop(con);
@@ -631,9 +698,9 @@ drizzle_return_t drizzle_connect(drizzle_st *con)
 
 drizzle_return_t drizzle_quit(drizzle_st *con)
 {
-  if (con)
+  if (con != NULL)
   {
-    drizzle_log_crazy(con, "shutting down the connection");
+    drizzle_log_debug(con, "shutting down the connection");
     con->flags.is_shutdown= true;
     drizzle_return_t ret;
     drizzle_result_st *result;
@@ -720,9 +787,9 @@ drizzle_result_st *drizzle_command_write(drizzle_st *con,
 
   drizzle_result_st *old_result;
 
-  if (!(con->options & DRIZZLE_CON_READY))
+  if (con->state.ready == false)
   {
-    if (con->options & DRIZZLE_CON_RAW_PACKET)
+    if (con->state.raw_packet)
     {
       drizzle_set_error(con, "drizzle_command_write",
                         "connection not ready");
@@ -737,9 +804,9 @@ drizzle_result_st *drizzle_command_write(drizzle_st *con,
     }
   }
 
-  if (drizzle_state_none(con))
+  if (con->has_state())
   {
-    if (con->options & (DRIZZLE_CON_RAW_PACKET | DRIZZLE_CON_NO_RESULT_READ))
+    if (con->state.raw_packet || con->state.no_result_read)
     {
       con->result= NULL;
     }
@@ -769,7 +836,7 @@ drizzle_result_st *drizzle_command_write(drizzle_st *con,
     con->command_offset= 0;
     con->command_total= total;
 
-    drizzle_state_push(con, drizzle_state_command_write);
+    con->push_state(drizzle_state_command_write);
   }
   else if (con->command_data == NULL)
   {
@@ -879,7 +946,7 @@ drizzle_return_t drizzle_state_addrinfo(drizzle_st *con)
         host= tcp->host;
       }
 
-      drizzle_log_crazy(con, "host=%s port=%s", host, port);
+      drizzle_log_debug(con, "host=%s port=%s", host, port);
       int ret= getaddrinfo(host, port, &ai, &(tcp->addrinfo));
       if (ret != 0)
       {
@@ -899,7 +966,8 @@ drizzle_return_t drizzle_state_addrinfo(drizzle_st *con)
     break;
   }
 
-  drizzle_state_pop(con);
+  con->pop_state();
+
   return DRIZZLE_RETURN_OK;
 }
 
@@ -953,6 +1021,8 @@ drizzle_return_t drizzle_state_connect(drizzle_st *con)
       }
     } while (0);
 
+    con->pop_state();
+
     return DRIZZLE_RETURN_OK;
 #endif // defined _WIN32 || defined __CYGWIN__
   }
@@ -962,7 +1032,7 @@ drizzle_return_t drizzle_state_connect(drizzle_st *con)
     if (con->addrinfo_next == NULL)
     {
       drizzle_set_error(con, __func__, "could not connect");
-      drizzle_state_reset(con);
+      con->clear_state();
       return DRIZZLE_RETURN_COULD_NOT_CONNECT;
     }
 
@@ -1002,10 +1072,10 @@ drizzle_return_t drizzle_state_connect(drizzle_st *con)
       int ret= connect(con->fd, con->addrinfo_next->ai_addr, con->addrinfo_next->ai_addrlen);
 
 #if defined _WIN32 || defined __CYGWIN__
-      translate_windows_error();
+      errno= translate_windows_error();
 #endif /* _WIN32 */
 
-      drizzle_log_crazy(con, "connect return=%d errno=%s", ret, strerror(errno));
+      drizzle_log_debug(con, "connect return=%d errno=%s", ret, strerror(errno));
 
       if (ret == 0)
       {
@@ -1022,7 +1092,7 @@ drizzle_return_t drizzle_state_connect(drizzle_st *con)
       {
         if (connect_poll(con))
         {
-          drizzle_state_pop(con);
+          con->pop_state();
           return DRIZZLE_RETURN_OK;
         }
       }
@@ -1042,7 +1112,7 @@ drizzle_return_t drizzle_state_connect(drizzle_st *con)
       SSL_set_fd(con->ssl, con->fd);
     }
 #endif
-    drizzle_state_pop(con);
+    con->pop_state();
   }
 
   return DRIZZLE_RETURN_OK;
@@ -1064,7 +1134,7 @@ drizzle_return_t drizzle_state_connecting(drizzle_st *con)
     int error= 0;
     if (con->revents & POLLOUT)
     {
-      drizzle_state_pop(con);
+      con->pop_state();
       socklen_t error_length= sizeof(error);
       int getsockopt_error;
       if ((getsockopt_error= getsockopt(con->fd, SOL_SOCKET, SO_ERROR, (char*)&error, &error_length)) < 1)
@@ -1075,7 +1145,7 @@ drizzle_return_t drizzle_state_connecting(drizzle_st *con)
 
       if (error == 0)
       {
-        drizzle_state_pop(con);
+        con->pop_state();
         return DRIZZLE_RETURN_OK;
       }
     }
@@ -1087,14 +1157,15 @@ drizzle_return_t drizzle_state_connecting(drizzle_st *con)
     if (error)
     {
       con->revents= 0;
-      drizzle_state_pop(con);
-      drizzle_state_push(con, drizzle_state_connect);
+      con->pop_state();
+      con->push_state(drizzle_state_connect);
       con->addrinfo_next= con->addrinfo_next->ai_next;
+
       return DRIZZLE_RETURN_OK;
     }
 
     ret= drizzle_set_events(con, POLLOUT);
-    if (con->options & DRIZZLE_CON_OPTIONS_NON_BLOCKING)
+    if (con->options.non_blocking)
     {
       return DRIZZLE_RETURN_IO_WAIT;
     }
@@ -1123,14 +1194,14 @@ drizzle_return_t drizzle_state_read(drizzle_st *con)
   {
     con->buffer_ptr= con->buffer;
   }
-  else if ((con->buffer_ptr - con->buffer) > (DRIZZLE_MAX_BUFFER_SIZE / 2))
+  else if ((size_t)(con->buffer_ptr - con->buffer) > (con->buffer_allocation / 2))
   {
     memmove(con->buffer, con->buffer_ptr, con->buffer_size);
     con->buffer_ptr= con->buffer;
   }
 
   if ((con->revents & POLLIN) == 0 &&
-      (con->options & DRIZZLE_CON_OPTIONS_NON_BLOCKING))
+      (con->options.non_blocking))
   {
     /* non-blocking mode: return IO_WAIT instead of attempting to read. This
      * avoids reading immediately after writing a command, which typically
@@ -1146,7 +1217,33 @@ drizzle_return_t drizzle_state_read(drizzle_st *con)
 
   while (1)
   {
-    size_t available_buffer= (size_t)DRIZZLE_MAX_BUFFER_SIZE - ((size_t)(con->buffer_ptr - con->buffer) + con->buffer_size);
+    size_t available_buffer= con->buffer_allocation - ((size_t)(con->buffer_ptr - con->buffer) + con->buffer_size);
+    if (available_buffer == 0)
+    {
+      if (con->buffer_allocation >= DRIZZLE_MAX_BUFFER_SIZE)
+      {
+        drizzle_set_error(con, __func__,
+                          "buffer too small:%zu", con->packet_size + 4);
+        return DRIZZLE_RETURN_INTERNAL_ERROR;
+      }
+      // Shift data to beginning of the buffer then resize
+      // This means that buffer_ptr isn't screwed up by realloc pointer move
+      if (con->buffer_ptr != con->buffer)
+      {
+        memmove(con->buffer, con->buffer_ptr, con->buffer_size);
+      }
+      con->buffer_allocation= con->buffer_allocation * 2;
+      unsigned char *realloc_buffer= (unsigned char*)realloc(con->buffer, con->buffer_allocation);
+      if (realloc_buffer == NULL)
+      {
+        drizzle_set_error(con, __func__, "realloc failure");
+        return DRIZZLE_RETURN_MEMORY;
+      }
+      con->buffer= realloc_buffer;
+      drizzle_log_debug(con, "buffer resized to: %zu", con->buffer_allocation);
+      con->buffer_ptr= con->buffer;
+      available_buffer= con->buffer_allocation - con->buffer_size;
+    }
 
 #ifdef USE_OPENSSL
     if (con->ssl_state == DRIZZLE_SSL_STATE_HANDSHAKE_COMPLETE)
@@ -1163,8 +1260,8 @@ drizzle_return_t drizzle_state_read(drizzle_st *con)
     errno= translate_windows_error();
 #endif // defined _WIN32 || defined __CYGWIN__
 
-    drizzle_log_crazy(con, "read fd=%d recv=%zd ssl= %d errno=%s",
-                      con->fd, read_size, 
+    drizzle_log_debug(con, "read fd=%d avail= %zd recv=%zd ssl= %d errno=%s",
+                      con->fd, available_buffer, read_size, 
                       (con->ssl_state == DRIZZLE_SSL_STATE_HANDSHAKE_COMPLETE) ? 1 : 0,
                       strerror(errno));
 
@@ -1196,7 +1293,7 @@ drizzle_return_t drizzle_state_read(drizzle_st *con)
             return ret;
           }
 
-          if (con->options & DRIZZLE_CON_OPTIONS_NON_BLOCKING)
+          if (con->options.non_blocking)
           {
             return DRIZZLE_RETURN_IO_WAIT;
           }
@@ -1212,8 +1309,8 @@ drizzle_return_t drizzle_state_read(drizzle_st *con)
       case ECONNREFUSED:
         {
           con->revents= 0;
-          drizzle_state_pop(con);
-          drizzle_state_push(con, drizzle_state_connect);
+          con->pop_state();
+          con->push_state(drizzle_state_connect);
           con->addrinfo_next= con->addrinfo_next->ai_next;
           return DRIZZLE_RETURN_OK;
         }
@@ -1223,7 +1320,7 @@ drizzle_return_t drizzle_state_read(drizzle_st *con)
 
       case EINVAL:
         {
-          drizzle_log_crazy(con, "EINVAL fd=%d buffer=%p available_buffer=%zd",
+          drizzle_log_debug(con, "EINVAL fd=%d buffer=%p available_buffer=%zd",
                             con->fd, (char *)con->buffer_ptr + con->buffer_size, available_buffer);
         }
         break;
@@ -1252,7 +1349,7 @@ drizzle_return_t drizzle_state_read(drizzle_st *con)
     break;
   }
 
-  drizzle_state_pop(con);
+  con->pop_state();
 
   return DRIZZLE_RETURN_OK;
 }
@@ -1286,7 +1383,7 @@ drizzle_return_t drizzle_state_write(drizzle_st *con)
     errno= translate_windows_error();
 #endif // defined _WIN32 || defined __CYGWIN__
 
-    drizzle_log_crazy(con, "write fd=%d return=%zd ssl=%d errno=%s",
+    drizzle_log_debug(con, "write fd=%d return=%zd ssl=%d errno=%s",
                       con->fd, write_size,
                       (con->ssl_state == DRIZZLE_SSL_STATE_HANDSHAKE_COMPLETE) ? 1 : 0,
                       strerror(errno));
@@ -1303,7 +1400,7 @@ drizzle_return_t drizzle_state_write(drizzle_st *con)
           return ret;
         }
 
-        if (con->options & DRIZZLE_CON_OPTIONS_NON_BLOCKING)
+        if (con->options.non_blocking)
         {
           return DRIZZLE_RETURN_IO_WAIT;
         }
@@ -1340,7 +1437,7 @@ drizzle_return_t drizzle_state_write(drizzle_st *con)
 
   con->buffer_ptr= con->buffer;
 
-  drizzle_state_pop(con);
+  con->pop_state();
 
   return DRIZZLE_RETURN_OK;
 }

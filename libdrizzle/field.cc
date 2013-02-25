@@ -2,6 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -63,26 +64,27 @@ drizzle_field_t drizzle_field_read(drizzle_result_st *result, size_t *offset,
     return 0;
   }
 
-  if (drizzle_state_none(result->con))
+  if (result->has_state())
   {
     if (result->field_current == result->column_count)
     {
       *ret_ptr= DRIZZLE_RETURN_ROW_END;
       return NULL;
     }
+
     if (result->binary_rows)
     {
-      drizzle_state_push(result->con, drizzle_state_binary_field_read);
+      result->push_state(drizzle_state_binary_field_read);
     }
     else
     {
-      drizzle_state_push(result->con, drizzle_state_field_read);
+      result->push_state(drizzle_state_field_read);
     }
   }
 
   if (result->binary_rows && (result->field_current == 0))
   {
-    drizzle_state_push(result->con, drizzle_state_binary_null_read);
+    result->push_state(drizzle_state_binary_null_read);
   }
 
   *ret_ptr= drizzle_state_loop(result->con);
@@ -143,7 +145,7 @@ drizzle_field_t drizzle_field_buffer(drizzle_result_st *result, size_t *total,
 
   if (result->field_buffer == NULL)
   {
-    result->field_buffer= (drizzle_field_t)realloc(NULL, (*total) +1);
+    result->field_buffer= new (std::nothrow) char[(*total) + 1];
     if (result->field_buffer == NULL)
     {
       drizzle_set_error(result->con, __func__, "Failed to allocate.");
@@ -176,7 +178,7 @@ void drizzle_field_free(drizzle_field_t field)
 {
   if (field)
   {
-    free(field);
+    delete[] field;
   }
 }
 
@@ -194,7 +196,7 @@ drizzle_return_t drizzle_state_field_read(drizzle_st *con)
 
   if (con->buffer_size == 0)
   {
-    drizzle_state_push(con, drizzle_state_read);
+    con->push_state(drizzle_state_read);
     return DRIZZLE_RETURN_OK;
   }
 
@@ -210,14 +212,14 @@ drizzle_return_t drizzle_state_field_read(drizzle_st *con)
     {
       con->result->field= NULL;
       con->result->field_current++;
-      drizzle_state_pop(con);
+      con->pop_state();
       return DRIZZLE_RETURN_OK;
     }
     else if (ret != DRIZZLE_RETURN_OK)
     {
       if (ret == DRIZZLE_RETURN_IO_WAIT)
       {
-        drizzle_state_push(con, drizzle_state_read);
+        con->push_state(drizzle_state_read);
         return DRIZZLE_RETURN_OK;
       }
 
@@ -257,15 +259,15 @@ drizzle_return_t drizzle_state_field_read(drizzle_st *con)
   {
     con->result->field_size= con->packet_size;
 
-    if (con->options & DRIZZLE_CON_RAW_PACKET)
+    if (con->state.raw_packet)
     {
       con->result->options = (drizzle_result_options_t)((int)con->result->options | DRIZZLE_RESULT_ROW_BREAK);
     }
     else
     {
-      drizzle_state_pop(con);
-      drizzle_state_push(con, drizzle_state_packet_read);
-      drizzle_state_push(con, drizzle_state_field_read);
+      con->pop_state();
+      con->push_state(drizzle_state_packet_read);
+      con->push_state(drizzle_state_field_read);
     }
   }
 
@@ -296,7 +298,7 @@ drizzle_return_t drizzle_state_field_read(drizzle_st *con)
   if (con->result->field_total == 0 || con->result->field_size > 0 ||
       con->packet_size == 0)
   {
-    drizzle_state_pop(con);
+    con->pop_state();
   }
 
   return DRIZZLE_RETURN_OK;
@@ -305,7 +307,7 @@ drizzle_return_t drizzle_state_field_read(drizzle_st *con)
 drizzle_return_t drizzle_state_binary_null_read(drizzle_st *con)
 {
   con->result->null_bitmap_length= (con->result->column_count+7+2)/8;
-  con->result->null_bitmap= (uint8_t*)malloc(con->result->null_bitmap_length);
+  con->result->null_bitmap= new uint8_t[con->result->null_bitmap_length];
   con->buffer_ptr++;
 
   memcpy(con->result->null_bitmap, con->buffer_ptr, con->result->null_bitmap_length);
@@ -313,7 +315,8 @@ drizzle_return_t drizzle_state_binary_null_read(drizzle_st *con)
   con->buffer_size-= con->result->null_bitmap_length+1;
   con->packet_size-= con->result->null_bitmap_length+1;
 
-  drizzle_state_pop(con);
+  con->pop_state();
+
   return DRIZZLE_RETURN_OK;
 }
 
@@ -381,7 +384,7 @@ drizzle_return_t drizzle_state_binary_field_read(drizzle_st *con)
   con->result->field_total= con->result->field_size;
 
   con->result->field_current++;
-  drizzle_state_pop(con);
+  con->pop_state();
   return DRIZZLE_RETURN_OK;
 }
 

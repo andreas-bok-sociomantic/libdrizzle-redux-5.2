@@ -2,7 +2,7 @@
  *
  *  Drizzle Client & Protocol Library
  *
- * Copyright (C) 2012 Andrew Hutchings (andrew@linuxjedi.co.uk)
+ * Copyright (C) 2012 Drizzle Developer Group
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,46 +49,47 @@ int main(int argc, char *argv[])
   drizzle_row_t row;
   int num_fields;
 
-  drizzle_st *con= drizzle_create_tcp(getenv("MYSQL_SERVER"),
-                                      getenv("MYSQL_PORT") ? atoi("MYSQL_PORT") : DRIZZLE_DEFAULT_TCP_PORT,
-                                      getenv("MYSQL_USER"),
-                                      getenv("MYSQL_PASSWORD"),
-                                      getenv("MYSQL_SCHEMA"), 0);
+  drizzle_st *con= drizzle_create(getenv("MYSQL_SERVER"),
+                                  getenv("MYSQL_PORT") ? atoi("MYSQL_PORT") : DRIZZLE_DEFAULT_TCP_PORT,
+                                  getenv("MYSQL_USER"),
+                                  getenv("MYSQL_PASSWORD"),
+                                  getenv("MYSQL_SCHEMA"), 0);
   ASSERT_NOT_NULL_(con, "Drizzle connection object creation error");
 
   drizzle_return_t ret= drizzle_connect(con);
   if (ret == DRIZZLE_RETURN_COULD_NOT_CONNECT)
   {
-    const char *error= drizzle_error(con);
+    char error[DRIZZLE_MAX_ERROR_SIZE];
+    strncpy(error, drizzle_error(con), DRIZZLE_MAX_ERROR_SIZE);
     drizzle_quit(con);
     SKIP_IF_(ret == DRIZZLE_RETURN_COULD_NOT_CONNECT, "%s(%s)", error, drizzle_strerror(ret));
   }
   ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "drizzle_connect(): %s(%s)", drizzle_error(con), drizzle_strerror(ret));
 
-  drizzle_query_str(con, "DROP SCHEMA IF EXISTS libdrizzle", &ret);
+  drizzle_query(con, "DROP SCHEMA IF EXISTS libdrizzle", 0, &ret);
   ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "CREATE SCHEMA libdrizzle (%s)", drizzle_error(con));
 
-  drizzle_query_str(con, "CREATE SCHEMA libdrizzle", &ret);
+  drizzle_query(con, "CREATE SCHEMA libdrizzle", 0, &ret);
   ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "CREATE SCHEMA libdrizzle (%s)", drizzle_error(con));
 
   ret= drizzle_select_db(con, "libdrizzle");
   ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "USE libdrizzle");
 
-  drizzle_query_str(con, "create table libdrizzle.t1 (a int)", &ret);
+  drizzle_query(con, "create table libdrizzle.t1 (a int)", 0, &ret);
   if (ret != DRIZZLE_RETURN_OK)
   {
     printf("Create table failure\n");
     return EXIT_FAILURE;
   }
 
-  drizzle_query_str(con, "insert into libdrizzle.t1 values (1),(2),(3)", &ret);
+  drizzle_query(con, "insert into libdrizzle.t1 values (1),(2),(3)", 0, &ret);
   if (ret != DRIZZLE_RETURN_OK)
   {
     printf("Insert failure\n");
     return EXIT_FAILURE;
   }
 
-  drizzle_result_st *result= drizzle_query_str(con, "select * from libdrizzle.t1", &ret);
+  drizzle_result_st *result= drizzle_query(con, "select * from libdrizzle.t1", 0, &ret);
   if (ret != DRIZZLE_RETURN_OK)
   {
     printf("Select failure\n");
@@ -141,10 +142,10 @@ int main(int argc, char *argv[])
 
   drizzle_result_free(result);
 
-  drizzle_query_str(con, "DROP TABLE libdrizzle.t1", &ret);
+  drizzle_query(con, "DROP TABLE libdrizzle.t1", 0, &ret);
   ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "DROP TABLE libdrizzle.t1");
 
-  drizzle_query_str(con, "DROP SCHEMA IF EXISTS libdrizzle", &ret);
+  drizzle_query(con, "DROP SCHEMA IF EXISTS libdrizzle", 0, &ret);
   ASSERT_EQ_(DRIZZLE_RETURN_OK, ret, "DROP SCHEMA libdrizzle (%s)", drizzle_error(con));
 
   ret= drizzle_quit(con);

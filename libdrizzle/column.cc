@@ -2,6 +2,7 @@
  *
  *  Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -56,31 +57,12 @@ drizzle_column_st *drizzle_column_create(drizzle_result_st *result)
     return NULL;
   }
 
-  column= (drizzle_column_st*)malloc(sizeof(drizzle_column_st));
+  column= new (std::nothrow) drizzle_column_st;
   if (column == NULL)
   {
     drizzle_set_error(result->con, __func__, "Failed to allocate.");
     return NULL;
   }
-
-  column->result = result;
-  column->options= DRIZZLE_COLUMN_UNUSED;
-  /* SET BELOW: column->next */
-  column->prev = NULL;
-  column->catalog[0] = '\0';
-  column->db[0] = '\0';
-  column->table[0] = '\0';
-  column->orig_table[0] = '\0';
-  column->name[0] = '\0';
-  column->orig_name[0] = '\0';
-  column->charset = DRIZZLE_CHARSET_NONE;
-  column->size = 0;
-  column->max_size = 0;
-  column->type= (drizzle_column_type_t)0;
-  column->flags = 0;
-  column->decimals = 0;
-  /* UNSET: column->default_value */
-  column->default_value_size = 0;
 
   column->result= result;
 
@@ -109,7 +91,7 @@ void drizzle_column_free(drizzle_column_st *column)
   if (column->next)
     column->next->prev= column->prev;
 
-  free(column);
+  delete column;
 }
 
 drizzle_result_st *drizzle_column_drizzle_result(drizzle_column_st *column)
@@ -266,12 +248,12 @@ drizzle_return_t drizzle_column_skip(drizzle_result_st *result)
   }
 
   drizzle_return_t ret;
-  if (drizzle_state_none(result->con))
+  if (result->has_state())
   {
     result->options = (drizzle_result_options_t)((int)result->options | (int)DRIZZLE_RESULT_SKIP_COLUMN);
 
-    drizzle_state_push(result->con, drizzle_state_column_read);
-    drizzle_state_push(result->con, drizzle_state_packet_read);
+    result->push_state(drizzle_state_column_read);
+    result->push_state(drizzle_state_packet_read);
   }
   ret= drizzle_state_loop(result->con);
   result->options = (drizzle_result_options_t)((int)result->options & (int)~DRIZZLE_RESULT_SKIP_COLUMN);
@@ -313,10 +295,10 @@ drizzle_column_st *drizzle_column_read(drizzle_result_st *result,
     return NULL;
   }
 
-  if (drizzle_state_none(result->con))
+  if (result->has_state())
   {
-    drizzle_state_push(result->con, drizzle_state_column_read);
-    drizzle_state_push(result->con, drizzle_state_packet_read);
+    result->push_state(drizzle_state_column_read);
+    result->push_state(drizzle_state_packet_read);
   }
 
   *ret_ptr= drizzle_state_loop(result->con);
@@ -341,7 +323,7 @@ drizzle_return_t drizzle_column_buffer(drizzle_result_st *result)
       return DRIZZLE_RETURN_OK;
     }
 
-    result->column_buffer= (drizzle_column_st*)calloc(result->column_count, sizeof(drizzle_column_st));
+    result->column_buffer= new (std::nothrow) drizzle_column_st[result->column_count];
     if (result->column_buffer == NULL)
     {
       drizzle_set_error(result->con, __func__, "Failed to allocate.");
@@ -490,7 +472,7 @@ drizzle_return_t drizzle_state_column_read(drizzle_st *con)
   /* Assume the entire column packet will fit in the buffer. */
   if (con->buffer_size < con->packet_size)
   {
-    drizzle_state_push(con, drizzle_state_read);
+    con->push_state(drizzle_state_read);
     return DRIZZLE_RETURN_OK;
   }
 
@@ -503,7 +485,7 @@ drizzle_return_t drizzle_state_column_read(drizzle_st *con)
     con->buffer_ptr+= 5;
     con->buffer_size-= 5;
 
-    drizzle_state_pop(con);
+    con->pop_state();
   }
   else if (con->result->options & DRIZZLE_RESULT_SKIP_COLUMN)
   {
@@ -512,7 +494,7 @@ drizzle_return_t drizzle_state_column_read(drizzle_st *con)
     con->packet_size= 0;
     con->result->column_current++;
 
-    drizzle_state_pop(con);
+    con->pop_state();
   }
   else
   {
@@ -574,7 +556,7 @@ drizzle_return_t drizzle_state_column_read(drizzle_st *con)
 
     con->result->column_current++;
 
-    drizzle_state_pop(con);
+    con->pop_state();
   }
 
   return DRIZZLE_RETURN_OK;

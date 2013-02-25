@@ -2,6 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -70,9 +71,9 @@ void drizzle_set_uds(drizzle_st *con, const char *uds)
     return;
   }
 
-  drizzle_reset_addrinfo(con);
-
   con->socket_type= DRIZZLE_CON_SOCKET_UDS;
+
+  drizzle_reset_addrinfo(con);
 
   if (uds == NULL)
   {

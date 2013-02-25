@@ -2,7 +2,7 @@
  *
  * Drizzle Client & Protocol Library
  *
- * Copyright (C) 2012 Drizzle Developer Group
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -118,62 +118,16 @@ void drizzle_set_auth(drizzle_st *con, const char *user, const char *password);
  * @param[in] db Database to use with this connection.
  */
 void drizzle_set_db(drizzle_st *con, const char *db);
- 
+
 /**
- * Check if state stack is empty.
+ * Set unix domain socket for a connection.
  *
  * @param[in] con Connection structure previously initialized with
  *  drizzle_create(), drizzle_clone(), or related functions.
- * @return True if empty, false if something is on the stack.
+ * @param[in] uds Unix domain socket to use for this connection, NULL for
+ *  defailt value.
  */
-static inline bool drizzle_state_none(drizzle_st *con)
-{
-  if (con == NULL)
-  {
-    return false;
-  }
-
-  return con->state_current == 0;
-}
-
-/**
- * Push a function onto the stack.
- *
- * @param[in] con Connection structure previously initialized with
- *  drizzle_create(), drizzle_clone(), or related functions.
- * @param[in] function Function to push.
- */
-static inline void drizzle_state_push(drizzle_st *con,
-                                      drizzle_state_fn *function)
-{
-  /* The maximum stack depth can be determined at compile time, so bump this
-     constant if needed to avoid the dynamic memory management. */
-  assert(con->state_current < DRIZZLE_STATE_STACK_SIZE);
-  con->state_stack[con->state_current]= function;
-  con->state_current++;
-}
-
-/**
- * Pop a function off of the stack.
- *
- * @param[in] con Connection structure previously initialized with
- *  drizzle_create(), drizzle_clone(), or related functions.
- */
-static inline void drizzle_state_pop(drizzle_st *con)
-{
-  con->state_current--;
-}
-
-/**
- * Reset the stack so it is empty.
- *
- * @param[in] con Connection structure previously initialized with
- *  drizzle_create(), drizzle_clone(), or related functions.
- */
-static inline void drizzle_state_reset(drizzle_st *con)
-{
-  con->state_current= 0;
-}
+void drizzle_set_uds(drizzle_st *con, const char *uds);
 
 /** @} */
 

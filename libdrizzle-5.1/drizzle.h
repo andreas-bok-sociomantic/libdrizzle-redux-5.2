@@ -1,6 +1,7 @@
 /*
  * Drizzle Client & Protocol Library
  *
+ * Copyright (C) 2008-2013 Drizzle Developer Group
  * Copyright (C) 2008 Eric Day (eday@oddments.org)
  * All rights reserved.
  *
@@ -80,17 +81,6 @@ extern "C" {
  * multiple drizzle_st structures (for example, one for each thread).
  * @{
  */
-
-/**
- * Intialize the Drizzle library
- *
- * Currently only initalizes the SSL library
- */
-DRIZZLE_API
-void drizzle_library_init(void);
-
-DRIZZLE_API
-void drizzle_library_deinit(void);
 
 /**
  * Get library version string.
