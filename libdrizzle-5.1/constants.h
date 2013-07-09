@@ -604,6 +604,8 @@ typedef drizzle_return_t (drizzle_event_watch_fn)(drizzle_st *con,
  */
 
 /* Protocol unpacking macros. */
+#define drizzle_get_byte1(__buffer)               \
+             (((uint8_t *)__buffer)[0])
 #define drizzle_get_byte2(__buffer)               \
             ((((uint8_t *)__buffer)[0]) |         \
   ((uint16_t)(((uint8_t *)__buffer)[1]) << 8))
@@ -619,6 +621,24 @@ typedef drizzle_return_t (drizzle_event_watch_fn)(drizzle_st *con,
 #define drizzle_get_byte8(__buffer)               \
   (drizzle_get_byte4(__buffer) |                  \
   ((uint64_t)drizzle_get_byte4(((uint8_t *)__buffer)+4) << 32))
+
+#define drizzle_get_byte1s(__buffer)               \
+             ((( int8_t *)__buffer)[0])
+#define drizzle_get_byte2s(__buffer)                \
+            ((((uint8_t *)__buffer)[0]) |          \
+   ((int16_t)((( int8_t *)__buffer)[1]) << 8))
+#define drizzle_get_byte3s(__buffer)                \
+              (((uint8_t *)__buffer)[0] |          \
+    ((int32_t)(((uint8_t *)__buffer)[1]) << 8) |   \
+    ((int32_t)((( int8_t *)__buffer)[2]) << 16))
+#define drizzle_get_byte4s(__buffer)                \
+              (((uint8_t *)__buffer)[0] |          \
+    ((int32_t)(((uint8_t *)__buffer)[1]) << 8) |   \
+    ((int32_t)(((uint8_t *)__buffer)[2]) << 16) |  \
+    ((int32_t)((( int8_t *)__buffer)[3]) << 24))
+#define drizzle_get_byte8s(__buffer)                \
+   (drizzle_get_byte4(__buffer) |                  \
+   ((int64_t)drizzle_get_byte4s(((uint8_t *)__buffer)+4) << 32))
 
 /* Protocol packing macros. */
 #define drizzle_set_byte1(__buffer, __int) do { \
